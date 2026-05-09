@@ -1,0 +1,81 @@
+Metadata-Version: 2.4
+Name: wazuh-api-client
+Version: 0.1.1b0
+Summary: A flexible Python API client for interacting with the Wazuh API (currently supporting version 4).
+Author-email: Moad Ennagi <moad.ennagi@gmail.com>
+License: Copyright (c) 2018 The Python Packaging Authority
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+Project-URL: Homepage, https://github.com/moadennagi/wazuh-api-sdk
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.20.0
+Requires-Dist: httpx==0.28.1
+Dynamic: license-file
+
+# Wazuh API client
+
+**A flexible Python client for interacting with the Wazuh API.**  
+Supports 4.x version with modular route handlers and extensive functionality for managing agents, configurations, and more.
+
+## Overview
+
+The Wazuh API client aims to simplify integrations with the Wazuh API by providing well-documented methods and abstractions for each available endpoint. Whether you need to manage agents, retrieve system configurations, or interface with other Wazuh components, this SDK offers a consistent and easy-to-use interface for your Python applications.
+
+## Usage
+
+```python
+from wazuh_api_client import AsyncWazuhClient
+from wazuh_api_client.managers import AgentsManager, SysCheckManager
+
+async with AsyncWazuhClient(
+    base_url="https://172.0.0.1:55000",
+    username="wazuh",
+    password="wazuh",
+    version="4",
+) as async_client:
+    agents_manager = AgentsManager(client=async_client)
+    syscheck_manager = SysCheckManager(client=async_client)
+    # res = await agents_manager.list()
+    # print(res)
+    print(await syscheck_manager.get_results(agent_id="001"))
+    print(await syscheck_manager.clear_results(agent_id="001"))
+    print(await syscheck_manager.get_last_scan_datetime(agent_id="001"))
+
+```
+## Installation
+
+### From Source
+
+Clone the repository and install in editable mode:
+
+```bash
+git clone https://github.com/moadennagi/wazuh-api-client.git
+cd wazuh-api-client
+pip install -e .
+```
+
+### From Pypi
+
+```bash
+pip install wazuh-api-client
+```
