@@ -17,7 +17,7 @@ Developed at the **Department of Computer Engineering, University of Jaffna**.
 
 The system operates in two core phases:
 1. **Training Phase:**
-   * **Preprocessing:** Structure raw cybersecurity incident datasets (such as CISSM and CECILIA) into clean representations.
+   * **Preprocessing:** Structure raw cybersecurity incident datasets (CISSM Cyber Events and rcATT threat intelligence reports) into clean representations.
    * **Representation Learning:** Fine-tune SecBERT to encode textual incident descriptions/alerts into dense, 768-dimensional state vectors representing the security state.
    * **Reinforcement Learning:** Train a **Proximal Policy Optimization (PPO)** RL agent inside a custom **Gymnasium** environment. The agent learns to map SecBERT state embeddings to defensive response actions (e.g., isolate host, block IP) by maximizing a reward function based on mitigation efficacy and system uptime.
 2. **Simulation & Evaluation Phase:**
@@ -65,13 +65,18 @@ The system operates in two core phases:
 ```directory
 soc-agent/
 ├── data/
-│   ├── raw/                  # Raw datasets (e.g., CISSM cyber events, CISA alerts)
+│   ├── raw/                  # Raw datasets (CISSM, rcATT, CISA playbooks)
+│   │   ├── cissm_cyber_events.csv
+│   │   └── rcATT/            # rcATT threat intelligence reports
 │   ├── processed/            # Cleaned data for model training
+│   │   ├── cissm_processed.csv
+│   │   └── rcatt_processed.csv
 │   └── action_space.csv      # Canonical 20-action space definitions
 ├── logs/                     # TensorBoard and execution log files
 ├── models/                   # Saved fine-tuned SecBERT and trained PPO models
 ├── results/                  # Evaluation statistics, charts, and metrics
 ├── preprocess_cissm.py       # Preprocesses raw CISSM data into tokenizable formats
+├── preprocess_rcatt.py       # Preprocesses rcATT threat reports with ATT&CK mapping
 ├── requirements.txt          # Python dependencies
 └── README.md                 # Project documentation
 ```
@@ -119,9 +124,9 @@ soc-agent/
 
 ### 1. Data Preprocessing
 
-Place your raw cyber event datasets in `data/raw/`. The repository includes support for preprocessing the CISSM Cyber Events dataset.
+Place your raw cyber event datasets in `data/raw/`. The repository includes preprocessing scripts for two datasets.
 
-To run the CISSM dataset preprocessing script:
+#### CISSM Cyber Events Dataset
 ```bash
 python preprocess_cissm.py
 ```
@@ -130,7 +135,25 @@ This script will:
 * Filter out entries missing critical fields.
 * Formulate a single textual sentence representing the event context.
 * Label the correct recommended containment action using the **20-action discrete action space** (see [Action Space](#action-space--policy-design) below).
-* Output the preprocessed data to `data/processed/cissm_processed.csv`.
+* Output **16,728 records** to `data/processed/cissm_processed.csv`.
+
+#### rcATT Threat Intelligence Reports Dataset
+
+The [rcATT dataset](https://github.com/vlegoy/rcATT) contains ~1,490 real-world cyber threat intelligence reports (scraped blog posts from Cisco Talos, Palo Alto Unit 42, Accenture iDefense, etc.) with multi-label MITRE ATT&CK tactic and technique annotations.
+
+```bash
+python preprocess_rcatt.py
+```
+This script will:
+* Clean boilerplate/navigation text from scraped web pages.
+* Truncate reports to ≤2,000 characters (to fit SecBERT's 512-token input limit).
+* Map 215 MITRE ATT&CK technique columns to the 20-action space using a two-tier strategy:
+  * **Tier 1 — Technique-level:** Direct mapping of specific technique IDs to actions (e.g., `T1486 Data Encrypted for Impact` → `isolate_host`).
+  * **Tier 2 — Tactic-level fallback:** If no specific technique match exists, the primary tactic determines the action (e.g., `TA0006 Credential Access` → `reset_credentials`).
+  * When multiple techniques/tactics are present, the **highest-severity action** is selected.
+* Output **1,490 records** to `data/processed/rcatt_processed.csv`.
+
+> **Combined training data: 18,218 labeled records** across both datasets.
 
 ---
 
@@ -205,7 +228,7 @@ escalate_to_human    ●      ●      ●       ●       ●       ●      �
 - [x] Set up repository, environments, and basic workspace.
 - [x] Implement preprocessing for the CISSM Dataset (`preprocess_cissm.py`).
 - [x] Define 20-action discrete action space from CISA Playbooks + MITRE CAR.
-- [ ] Preprocess the CECILIA alert dataset.
+- [x] Preprocess the rcATT threat intelligence dataset (`preprocess_rcatt.py`).
 - [ ] Implement SecBERT fine-tuning script (`train_secbert.py`).
 - [ ] Build custom Gymnasium RL environment (`soc_env.py`).
 - [ ] Implement and train the PPO RL Agent (`train_ppo.py`).
