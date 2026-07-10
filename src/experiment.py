@@ -77,3 +77,40 @@ def init_experiment(cfg, base_dir="experiments"):
     print(f"Saved initial experiment.json to {meta_file_path}")
     
     return paths
+
+def finalize_experiment(dirs, cfg, best_metrics, base_dir="experiments"):
+    """
+    Phase 2.15: Archive Experiment metadata and append to summary.csv.
+    """
+    import csv
+    
+    # 1. Update experiment.json with best_metrics
+    meta_file_path = os.path.join(dirs["metadata"], "experiment.json")
+    if os.path.exists(meta_file_path):
+        with open(meta_file_path, "r") as f:
+            metadata = json.load(f)
+            
+        metadata["best_metrics"] = best_metrics
+        
+        with open(meta_file_path, "w") as f:
+            json.dump(metadata, f, indent=4)
+            
+    # 2. Append to summary.csv
+    summary_file = os.path.join(base_dir, "summary.csv")
+    file_exists = os.path.exists(summary_file)
+    
+    with open(summary_file, mode='a', newline='') as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(["Experiment", "LR", "Batch", "Epochs", "Macro F1", "Weighted F1", "MCC"])
+            
+        writer.writerow([
+            dirs["exp_id"],
+            cfg.optimizer.learning_rate,
+            cfg.training.batch_size,
+            cfg.training.epochs,
+            f"{best_metrics.get('macro_f1', 0):.4f}",
+            f"{best_metrics.get('weighted_f1', 0):.4f}",
+            f"{best_metrics.get('mcc', 0):.4f}"
+        ])
+    print(f"  [+] Appended results to {summary_file}")

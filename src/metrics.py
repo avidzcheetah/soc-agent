@@ -15,12 +15,16 @@ def compute_metrics(labels, preds):
     precision = precision_score(labels, preds, average='macro', zero_division=0)
     recall = recall_score(labels, preds, average='macro', zero_division=0)
     
+    from sklearn.metrics import matthews_corrcoef
+    mcc = matthews_corrcoef(labels, preds)
+    
     return {
         "accuracy": acc,
         "macro_f1": macro_f1,
         "weighted_f1": weighted_f1,
         "precision": precision,
-        "recall": recall
+        "recall": recall,
+        "mcc": mcc
     }
 
 def generate_classification_report(labels, preds, output_path):

@@ -45,10 +45,21 @@ def main():
     trainer.fit()
     
     # 9. Final Evaluation
-    from src.evaluator import evaluate_model_on_test_split
-    evaluate_model_on_test_split(exp_paths, test_loader, cfg)
+    from src.evaluator import evaluate_model_on_test_split, verify_saved_model
+    import os
+    test_metrics = evaluate_model_on_test_split(exp_paths, test_loader, cfg)
 
-    print("\nPhase 2 training & evaluation completed successfully!")
+    # 10. Model Verification & Freeze Documenting
+    best_model_dir = os.path.join(exp_paths["checkpoints"], "best_model")
+    if os.path.exists(best_model_dir):
+        verify_saved_model(best_model_dir)
+
+    # 11. Archive Experiment
+    from src.experiment import finalize_experiment
+    if test_metrics:
+        finalize_experiment(exp_paths, cfg, test_metrics)
+
+    print("\nPhase 2 Complete: Model is completely finalized and verified for the PPO environment.")
     sys.exit(0)
 
 if __name__ == "__main__":
