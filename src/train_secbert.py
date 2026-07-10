@@ -41,7 +41,10 @@ def main():
     from src.utils import print_training_header
     print_training_header(cfg, len(train_df), len(val_df), len(test_df), exp_id=exp_paths["exp_id"])
 
-    print("\nPhase 2 partial verification completed successfully!")
+    # 8. Train
+    trainer.fit()
+
+    print("\nPhase 2 training completed successfully!")
     sys.exit(0)
 
 if __name__ == "__main__":
