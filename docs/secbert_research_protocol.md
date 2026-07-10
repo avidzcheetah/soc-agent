@@ -21,9 +21,10 @@ This document defines the rigorous research protocol and methodology for fine-tu
   - **Stage 3: Train/Test Split:** Split the remaining clean, deduplicated dataset.
 
 ## 3. Label Consistency Checks
-- **Class Imbalance Analysis:** Based on preliminary data analysis, the dataset exhibits significant class imbalance. For example, Action 16 (`patch_vulnerability`) and Action 7 (`isolate_host`) dominate the CISSM dataset, while Actions 13 (`remove_persistence`) and 11 (`reset_credentials`) are frequent in rcATT. Some actions (e.g., 2, 18) may have very few or zero samples.
+- **Class Imbalance Analysis:** Based on preliminary data analysis, the dataset exhibits significant class imbalance. For example, Action 16 (`patch_vulnerability`) and Action 7 (`isolate_host`) dominate the CISSM dataset, while Actions 13 (`remove_persistence`) and 11 (`reset_credentials`) are frequent in rcATT. Actions 2 (`create_ioc_alert`) and 18 (`sandbox_redirect`) have exactly zero samples across both datasets.
 - **Mitigation Strategy:** 
   - **Class Weights:** We will compute class weights based on inverse class frequencies using scikit-learn (`compute_class_weight`) and pass these to the `CrossEntropyLoss` function during PyTorch training to penalize minority misclassifications.
+  - **Missing Classes:** Any class with exactly 0 instances (e.g., Actions 2 and 18) will be explicitly assigned a weight of `0.0`. This ensures PyTorch receives a weight tensor of length 20 (matching the 20 actions in `action_space.csv`) preventing shape mismatch crashes while completely ignoring the missing classes during loss calculation.
   - **WeightedRandomSampler:** We will apply a `WeightedRandomSampler` to the PyTorch `DataLoader` to adjust which batches are seen, ensuring minority classes are sufficiently sampled. Using both techniques together guarantees much better minority learning.
   - Stratification will be strictly enforced during data splitting.
 
