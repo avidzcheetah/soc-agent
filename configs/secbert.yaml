@@ -1,0 +1,19 @@
+model:
+  name: jackaduma/SecBERT
+  max_length: 512
+
+training:
+  batch_size: 16
+  epochs: 5
+  learning_rate: 3e-05
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+
+early_stopping:
+  patience: 2
+
+logging:
+  tensorboard: true
+
+mixed_precision:
+  fp16: true
