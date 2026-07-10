@@ -31,6 +31,13 @@ def main():
     # 6. Model Construction
     model = get_model(cfg)
 
+    # 7. Trainer Assembly
+    from src.dataset import get_dataloaders
+    train_loader, val_loader, test_loader = get_dataloaders(train_df, val_df, test_df, tokenizer, cfg)
+    
+    from src.trainer import SecBERTTrainer
+    trainer = SecBERTTrainer(model, cfg, exp_paths, train_loader, val_loader, tokenizer)
+
     from src.utils import print_training_header
     print_training_header(cfg, len(train_df), len(val_df), len(test_df), exp_id=exp_paths["exp_id"])
 
