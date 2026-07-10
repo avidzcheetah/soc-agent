@@ -77,8 +77,33 @@ def log_environment(cfg):
         print("Stopping immediately. Use --device cpu to run on CPU explicitly.\n")
         sys.exit(1)
 
-def print_training_header(config, train_size, val_size, test_size):
+def print_training_header(cfg, train_size, val_size, test_size, exp_id="N/A"):
     """
     Format and output the experiment runner details box.
     """
-    pass
+    print("======================================")
+    print("Training Configuration")
+    print("======================================")
+    print(f"  Experiment ID         : {exp_id}")
+    print(f"  Train / Val / Test    : {train_size} / {val_size} / {test_size} records")
+    print(f"  Batch Size            : {cfg.training.batch_size}")
+    print(f"  Gradient Accumulation : {cfg.training.gradient_accumulation_steps} steps")
+    print(f"  Epochs                : {cfg.training.epochs}")
+    print(f"  Mixed Precision       : {cfg.training.mixed_precision}")
+    print()
+    print("Optimizer Configuration:")
+    print(f"  Optimizer             : {cfg.optimizer.type}")
+    print(f"  Learning Rate         : {cfg.optimizer.learning_rate}")
+    print(f"  Weight Decay          : {cfg.optimizer.weight_decay}")
+    print(f"  Gradient Clipping     : {cfg.optimizer.max_grad_norm}")
+    print()
+    print("Scheduler Configuration:")
+    print(f"  Scheduler             : {cfg.scheduler.type}")
+    print(f"  Warmup Ratio          : {cfg.scheduler.warmup_ratio}")
+    print()
+    print("Early Stopping Configuration:")
+    print(f"  Monitor               : {cfg.checkpoint.monitor}")
+    print(f"  Mode                  : {cfg.checkpoint.mode}")
+    print(f"  Patience              : {cfg.early_stopping.patience} epochs")
+    print(f"  Min Delta             : {cfg.early_stopping.min_delta}")
+    print("======================================\n")

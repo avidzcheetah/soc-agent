@@ -31,6 +31,9 @@ def main():
     # 6. Model Construction
     model = get_model(cfg)
 
+    from src.utils import print_training_header
+    print_training_header(cfg, len(train_df), len(val_df), len(test_df), exp_id=exp_paths["exp_id"])
+
     print("\nPhase 2 partial verification completed successfully!")
     sys.exit(0)
 
