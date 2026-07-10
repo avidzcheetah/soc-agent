@@ -70,9 +70,6 @@ def load_and_validate_config(args):
         
     if args.device is not None:
         data['system']['device'] = args.device
-    elif data['system']['device'] == "cuda" and not torch.cuda.is_available():
-        # Fallback to CPU if CUDA is requested but not available
-        data['system']['device'] = "cpu"
         
     if args.output is not None:
         # Override output directories dynamically
