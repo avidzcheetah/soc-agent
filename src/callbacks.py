@@ -26,18 +26,22 @@ class EarlyStopping:
 def save_epoch_checkpoint(epoch, model, tokenizer, optimizer, scheduler, checkpoints_dir):
     """
     Save PyTorch weights and training state (optimizer, scheduler) for resume.
+    Also updates the "last_model" directory.
     """
     checkpoint_path = os.path.join(checkpoints_dir, f"checkpoint-epoch-{epoch}")
-    os.makedirs(checkpoint_path, exist_ok=True)
+    last_model_path = os.path.join(checkpoints_dir, "last_model")
     
-    # Save model and tokenizer
-    model.save_pretrained(checkpoint_path)
-    tokenizer.save_pretrained(checkpoint_path)
-    
-    # Save training states
-    torch.save({
-        'epoch': epoch,
-        'optimizer_state_dict': optimizer.state_dict(),
-        'scheduler_state_dict': scheduler.state_dict() if scheduler else None
-    }, os.path.join(checkpoint_path, "training_state.pt"))
+    for path in [checkpoint_path, last_model_path]:
+        os.makedirs(path, exist_ok=True)
+        # Save model and tokenizer
+        model.save_pretrained(path)
+        tokenizer.save_pretrained(path)
+        
+        # Save training states
+        torch.save({
+            'epoch': epoch,
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict() if scheduler else None
+        }, os.path.join(path, "training_state.pt"))
+        
     return checkpoint_path

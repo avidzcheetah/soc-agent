@@ -23,14 +23,45 @@ def compute_metrics(labels, preds):
         "recall": recall
     }
 
-def generate_classification_report(labels, preds, active_classes, output_path):
+def generate_classification_report(labels, preds, output_path):
     """
-    Generate JSON classification report file.
+    Generate JSON and TXT classification report file.
     """
-    pass
+    report_dict = classification_report(labels, preds, output_dict=True, zero_division=0)
+    report_txt = classification_report(labels, preds, zero_division=0)
+    
+    with open(output_path.replace('.json', '.txt'), 'w') as f:
+        f.write(report_txt)
+        
+    with open(output_path, 'w') as f:
+        json.dump(report_dict, f, indent=4)
+        
+    return report_dict
 
-def plot_confusion_matrices(labels, preds, results_dir, action_space_path="data/action_space.csv"):
+def plot_confusion_matrices(labels, preds, results_dir):
     """
     Plot raw and normalized confusion matrix heatmaps using matplotlib/seaborn.
     """
-    pass
+    from sklearn.metrics import confusion_matrix
+    import os
+    
+    # Raw Confusion Matrix
+    cm_raw = confusion_matrix(labels, preds)
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(cm_raw, annot=True, fmt='d', cmap='Blues')
+    plt.title('Confusion Matrix (Raw)')
+    plt.ylabel('True Label')
+    plt.xlabel('Predicted Label')
+    plt.savefig(os.path.join(results_dir, 'confusion_matrix_raw.png'))
+    plt.close()
+    
+    # Normalized Confusion Matrix
+    cm_norm = confusion_matrix(labels, preds, normalize='true')
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(cm_norm, annot=True, fmt='.2f', cmap='Blues')
+    plt.title('Confusion Matrix (Normalized)')
+    plt.ylabel('True Label')
+    plt.xlabel('Predicted Label')
+    plt.savefig(os.path.join(results_dir, 'confusion_matrix_normalized.png'))
+    plt.close()
+

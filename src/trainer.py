@@ -211,18 +211,17 @@ class SecBERTTrainer:
             with open(os.path.join(self.dirs["metadata"], "metrics.json"), "w") as f:
                 json.dump(self.history, f, indent=4)
                 
-            # Checkpoint
+            # Save best model if improved
             if val_metrics['loss'] < best_val_loss:
                 best_val_loss = val_metrics['loss']
                 print(f"  [+] Validation loss improved to {best_val_loss:.4f}. Saving best model.")
-                # Save to best_model dir
-                best_model_dir = os.path.join(self.cfg.checkpoint.best_dir)
+                best_model_dir = os.path.join(self.dirs["checkpoints"], "best_model")
                 os.makedirs(best_model_dir, exist_ok=True)
                 self.model.save_pretrained(best_model_dir)
                 self.tokenizer.save_pretrained(best_model_dir)
                 
-                # Also save standard checkpoint
-                save_epoch_checkpoint(epoch, self.model, self.tokenizer, self.optimizer, self.scheduler, self.dirs["checkpoints"])
+            # Save standard checkpoint every epoch (includes last_model via callbacks)
+            save_epoch_checkpoint(epoch, self.model, self.tokenizer, self.optimizer, self.scheduler, self.dirs["checkpoints"])
                 
             # Early Stopping
             self.early_stopping(val_metrics['loss'])

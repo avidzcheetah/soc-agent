@@ -43,8 +43,12 @@ def main():
 
     # 8. Train
     trainer.fit()
+    
+    # 9. Final Evaluation
+    from src.evaluator import evaluate_model_on_test_split
+    evaluate_model_on_test_split(exp_paths, test_loader, cfg)
 
-    print("\nPhase 2 training completed successfully!")
+    print("\nPhase 2 training & evaluation completed successfully!")
     sys.exit(0)
 
 if __name__ == "__main__":
