@@ -110,16 +110,34 @@ def verify_data_splits(train_df, val_df, test_df, cfg):
 class SecBERTDataset(Dataset):
     """
     Custom PyTorch Dataset for SecBERT.
-    Implemented in Phase 2.6 (Tokenizer Pipeline).
+    Stores truncation-only encodings (no padding).
+    Padding is applied at batch time via DataCollatorWithPadding.
     """
     def __init__(self, texts, labels, tokenizer, max_length):
-        pass
+        self.texts = texts
+        self.labels = labels
+        self.tokenizer = tokenizer
+        self.max_length = max_length
 
     def __len__(self):
-        pass
+        return len(self.texts)
 
     def __getitem__(self, idx):
-        pass
+        text = str(self.texts[idx])
+        label = int(self.labels[idx])
+
+        encoding = self.tokenizer(
+            text,
+            truncation=True,
+            max_length=self.max_length,
+            # No padding here — handled dynamically by DataCollatorWithPadding
+        )
+
+        return {
+            "input_ids": encoding["input_ids"],
+            "attention_mask": encoding["attention_mask"],
+            "label": label,
+        }
 
 
 def load_class_weights(weights_path, device="cpu"):
@@ -130,9 +148,43 @@ def load_class_weights(weights_path, device="cpu"):
     pass
 
 
-def get_dataloaders(train_df, val_df, test_df, tokenizer, max_length, batch_size, weights_path):
+def get_dataloaders(train_df, val_df, test_df, tokenizer, cfg):
     """
-    Initialize DataLoader objects applying WeightedRandomSampler to the train split.
-    Implemented in Phase 2.6 (Tokenizer Pipeline).
+    Build DataLoaders with DataCollatorWithPadding for dynamic padding.
+    Training split uses WeightedRandomSampler for class balance.
     """
-    pass
+    from transformers import DataCollatorWithPadding
+
+    max_length = cfg.tokenizer.max_length
+    batch_size = cfg.training.batch_size
+    weights_path = cfg.dataset.class_weights_path
+
+    # Build datasets
+    train_dataset = SecBERTDataset(train_df["text"].values, train_df["action_label"].values, tokenizer, max_length)
+    val_dataset   = SecBERTDataset(val_df["text"].values,   val_df["action_label"].values,   tokenizer, max_length)
+    test_dataset  = SecBERTDataset(test_df["text"].values,  test_df["action_label"].values,  tokenizer, max_length)
+
+    # Dynamic padding collator
+    collator = DataCollatorWithPadding(tokenizer=tokenizer)
+
+    # WeightedRandomSampler for training set
+    with open(weights_path, "r") as f:
+        class_weights_dict = json.load(f)
+
+    class_weights_list = [0.0] * cfg.model.num_labels
+    for k, v in class_weights_dict.items():
+        class_weights_list[int(k)] = float(v)
+
+    train_labels = train_df["action_label"].values
+    sample_weights = [class_weights_list[label] for label in train_labels]
+
+    if sum(sample_weights) == 0:
+        sample_weights = [1.0] * len(sample_weights)
+
+    sampler = WeightedRandomSampler(weights=sample_weights, num_samples=len(sample_weights), replacement=True)
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler, collate_fn=collator, num_workers=0)
+    val_loader   = DataLoader(val_dataset,   batch_size=batch_size, shuffle=False,   collate_fn=collator, num_workers=0)
+    test_loader  = DataLoader(test_dataset,  batch_size=batch_size, shuffle=False,   collate_fn=collator, num_workers=0)
+
+    return train_loader, val_loader, test_loader
