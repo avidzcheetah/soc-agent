@@ -1,5 +1,7 @@
 # Responsibility: Accuracy, Macro F1, MCC, confusion matrix
 import json
+import matplotlib
+matplotlib.use('Agg')
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, classification_report
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -56,7 +58,8 @@ def plot_confusion_matrices(labels, preds, results_dir):
     plt.title('Confusion Matrix (Raw)')
     plt.ylabel('True Label')
     plt.xlabel('Predicted Label')
-    plt.savefig(os.path.join(results_dir, 'confusion_matrix_raw.png'))
+    plt.tight_layout()
+    plt.savefig(os.path.join(results_dir, 'confusion_matrix_raw.png'), dpi=150)
     plt.close()
     
     # Normalized Confusion Matrix
@@ -66,6 +69,7 @@ def plot_confusion_matrices(labels, preds, results_dir):
     plt.title('Confusion Matrix (Normalized)')
     plt.ylabel('True Label')
     plt.xlabel('Predicted Label')
-    plt.savefig(os.path.join(results_dir, 'confusion_matrix_normalized.png'))
+    plt.tight_layout()
+    plt.savefig(os.path.join(results_dir, 'confusion_matrix_normalized.png'), dpi=150)
     plt.close()
 

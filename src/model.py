@@ -49,13 +49,3 @@ def get_model(cfg):
     return model
 
 
-def verify_saved_model(model_dir, device="cpu"):
-    """
-    Perform final validation checks on the saved best model:
-    - Loads successfully
-    - Tokenizer loads successfully
-    - Embedding dimension is exactly 768
-    - No NaN/Inf values
-    - Output logits match action space size (20)
-    """
-    pass

@@ -165,6 +165,7 @@ class SecBERTTrainer:
         """
         print("Starting training loop...")
         best_val_loss = float('inf')
+        best_epoch = 1
         
         for epoch in range(1, self.cfg.training.epochs + 1):
             start_time = time.time()
@@ -214,6 +215,7 @@ class SecBERTTrainer:
             # Save best model if improved
             if val_metrics['loss'] < best_val_loss:
                 best_val_loss = val_metrics['loss']
+                best_epoch = epoch
                 print(f"  [+] Validation loss improved to {best_val_loss:.4f}. Saving best model.")
                 best_model_dir = os.path.join(self.dirs["checkpoints"], "best_model")
                 os.makedirs(best_model_dir, exist_ok=True)
@@ -232,4 +234,5 @@ class SecBERTTrainer:
             print("-" * 60)
             
         self.writer.close()
-        print("Training complete.")
+        self.best_epoch = best_epoch
+        print(f"Training complete. Best epoch: {best_epoch}")

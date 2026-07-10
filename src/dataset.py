@@ -136,7 +136,7 @@ class SecBERTDataset(Dataset):
         return {
             "input_ids": encoding["input_ids"],
             "attention_mask": encoding["attention_mask"],
-            "label": label,
+            "labels": label,
         }
 
 

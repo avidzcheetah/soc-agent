@@ -78,19 +78,37 @@ def init_experiment(cfg, base_dir="experiments"):
     
     return paths
 
-def finalize_experiment(dirs, cfg, best_metrics, base_dir="experiments"):
+def finalize_experiment(dirs, cfg, best_metrics, best_epoch=None, base_dir="experiments"):
     """
     Phase 2.15: Archive Experiment metadata and append to summary.csv.
     """
     import csv
+    import hashlib
     
-    # 1. Update experiment.json with best_metrics
+    def _file_hash(path):
+        """Compute MD5 hash of a file for reproducibility tracking."""
+        h = hashlib.md5()
+        try:
+            with open(path, 'rb') as f:
+                for chunk in iter(lambda: f.read(8192), b''):
+                    h.update(chunk)
+            return h.hexdigest()
+        except FileNotFoundError:
+            return "file_not_found"
+    
+    # 1. Update experiment.json with best_metrics and dataset hashes
     meta_file_path = os.path.join(dirs["metadata"], "experiment.json")
     if os.path.exists(meta_file_path):
         with open(meta_file_path, "r") as f:
             metadata = json.load(f)
             
         metadata["best_metrics"] = best_metrics
+        metadata["best_epoch"] = best_epoch
+        metadata["dataset_hash"] = {
+            "train": _file_hash(cfg.dataset.train_path),
+            "val": _file_hash(cfg.dataset.val_path),
+            "test": _file_hash(cfg.dataset.test_path)
+        }
         
         with open(meta_file_path, "w") as f:
             json.dump(metadata, f, indent=4)
@@ -102,7 +120,7 @@ def finalize_experiment(dirs, cfg, best_metrics, base_dir="experiments"):
     with open(summary_file, mode='a', newline='') as f:
         writer = csv.writer(f)
         if not file_exists:
-            writer.writerow(["Experiment", "LR", "Batch", "Epochs", "Macro F1", "Weighted F1", "MCC"])
+            writer.writerow(["Experiment", "LR", "Batch", "Epochs", "Macro F1", "Weighted F1", "MCC", "Best Epoch"])
             
         writer.writerow([
             dirs["exp_id"],
@@ -111,6 +129,7 @@ def finalize_experiment(dirs, cfg, best_metrics, base_dir="experiments"):
             cfg.training.epochs,
             f"{best_metrics.get('macro_f1', 0):.4f}",
             f"{best_metrics.get('weighted_f1', 0):.4f}",
-            f"{best_metrics.get('mcc', 0):.4f}"
+            f"{best_metrics.get('mcc', 0):.4f}",
+            best_epoch if best_epoch else "N/A"
         ])
     print(f"  [+] Appended results to {summary_file}")
