@@ -24,6 +24,7 @@ training:
   gradient_accumulation_steps: 1
   epochs: 10
   mixed_precision: true
+  label_smoothing: 0.1
 
 optimizer:
   type: "AdamW"

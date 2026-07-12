@@ -16,7 +16,7 @@ class SecBERTTrainer:
     Core executor that manages optimization steps, backpropagation, validation checks,
     learning rate scheduling, gradient clipping, early stopping, and logs metrics.
     """
-    def __init__(self, model, cfg, dirs, train_loader, val_loader, tokenizer, class_weights=None):
+    def __init__(self, model, cfg, dirs, train_loader, val_loader, tokenizer):
         self.model = model
         self.cfg = cfg
         self.dirs = dirs
@@ -49,13 +49,13 @@ class SecBERTTrainer:
             min_delta=cfg.early_stopping.min_delta
         )
         
-        # Weighted CrossEntropyLoss (EXP_002A)
-        if class_weights is not None:
-            self.criterion = torch.nn.CrossEntropyLoss(weight=class_weights.to(self.device))
-            print("  [PASS] Weighted CrossEntropyLoss initialized")
+        # Label Smoothing (EXP_002B)
+        ls_value = cfg.training.get('label_smoothing', 0.0)
+        self.criterion = torch.nn.CrossEntropyLoss(label_smoothing=ls_value)
+        if ls_value > 0:
+            print(f"  [PASS] Label Smoothing enabled (value: {ls_value})")
         else:
-            self.criterion = torch.nn.CrossEntropyLoss()
-            print("  [INFO] Using unweighted CrossEntropyLoss (no class weights provided)")
+            print("  [INFO] Using standard CrossEntropyLoss (no label smoothing)")
         
         self.scaler = torch.amp.GradScaler('cuda') if (cfg.training.mixed_precision and self.device.type == "cuda") else None
         
@@ -94,7 +94,7 @@ class SecBERTTrainer:
             attention_mask = batch["attention_mask"].to(self.device)
             labels = batch["labels"].to(self.device)
             
-            # Forward (weighted CE — loss computed via self.criterion, not HF default)
+            # Forward (label smoothing CE — loss computed via self.criterion)
             if self.scaler:
                 with torch.amp.autocast('cuda'):
                     outputs = self.model(input_ids, attention_mask=attention_mask)
