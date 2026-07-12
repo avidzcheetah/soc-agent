@@ -16,7 +16,7 @@ class SecBERTTrainer:
     Core executor that manages optimization steps, backpropagation, validation checks,
     learning rate scheduling, gradient clipping, early stopping, and logs metrics.
     """
-    def __init__(self, model, cfg, dirs, train_loader, val_loader, tokenizer):
+    def __init__(self, model, cfg, dirs, train_loader, val_loader, tokenizer, class_weights=None):
         self.model = model
         self.cfg = cfg
         self.dirs = dirs
@@ -48,6 +48,14 @@ class SecBERTTrainer:
             patience=cfg.early_stopping.patience, 
             min_delta=cfg.early_stopping.min_delta
         )
+        
+        # Weighted CrossEntropyLoss (EXP_002A)
+        if class_weights is not None:
+            self.criterion = torch.nn.CrossEntropyLoss(weight=class_weights.to(self.device))
+            print("  [PASS] Weighted CrossEntropyLoss initialized")
+        else:
+            self.criterion = torch.nn.CrossEntropyLoss()
+            print("  [INFO] Using unweighted CrossEntropyLoss (no class weights provided)")
         
         self.scaler = torch.amp.GradScaler('cuda') if (cfg.training.mixed_precision and self.device.type == "cuda") else None
         
@@ -86,14 +94,14 @@ class SecBERTTrainer:
             attention_mask = batch["attention_mask"].to(self.device)
             labels = batch["labels"].to(self.device)
             
-            # Forward
+            # Forward (weighted CE — loss computed via self.criterion, not HF default)
             if self.scaler:
                 with torch.amp.autocast('cuda'):
-                    outputs = self.model(input_ids, attention_mask=attention_mask, labels=labels)
-                    loss = outputs.loss / self.cfg.training.gradient_accumulation_steps
+                    outputs = self.model(input_ids, attention_mask=attention_mask)
+                    loss = self.criterion(outputs.logits, labels) / self.cfg.training.gradient_accumulation_steps
             else:
-                outputs = self.model(input_ids, attention_mask=attention_mask, labels=labels)
-                loss = outputs.loss / self.cfg.training.gradient_accumulation_steps
+                outputs = self.model(input_ids, attention_mask=attention_mask)
+                loss = self.criterion(outputs.logits, labels) / self.cfg.training.gradient_accumulation_steps
                 
             # Backward
             if self.scaler:
@@ -137,6 +145,7 @@ class SecBERTTrainer:
         total_loss = 0
         all_preds = []
         all_labels = []
+        all_logits = []
         
         with torch.no_grad():
             for batch in self.val_loader:
@@ -146,16 +155,19 @@ class SecBERTTrainer:
                 
                 if self.scaler:
                     with torch.amp.autocast('cuda'):
-                        outputs = self.model(input_ids, attention_mask=attention_mask, labels=labels)
+                        outputs = self.model(input_ids, attention_mask=attention_mask)
+                        loss = self.criterion(outputs.logits, labels)
                 else:
-                    outputs = self.model(input_ids, attention_mask=attention_mask, labels=labels)
+                    outputs = self.model(input_ids, attention_mask=attention_mask)
+                    loss = self.criterion(outputs.logits, labels)
                     
-                total_loss += outputs.loss.item()
+                total_loss += loss.item()
                 preds = torch.argmax(outputs.logits, dim=-1)
                 all_preds.extend(preds.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
+                all_logits.extend(outputs.logits.cpu().float().numpy())
                 
-        metrics = compute_metrics(all_labels, all_preds)
+        metrics = compute_metrics(all_labels, all_preds, logits=all_logits)
         metrics["loss"] = total_loss / len(self.val_loader)
         return metrics
 
@@ -180,7 +192,8 @@ class SecBERTTrainer:
             # Print metrics
             print(f"Epoch {epoch}/{self.cfg.training.epochs} | Time: {epoch_time:.1f}s | LR: {current_lr:.2e} | GPU Mem: {gpu_mem:.2f}GB")
             print(f"  Train -> Loss: {train_metrics['loss']:.4f} | Acc: {train_metrics['accuracy']:.4f} | Macro F1: {train_metrics['macro_f1']:.4f} | Grad Norm: {train_metrics['grad_norm']:.4f}")
-            print(f"  Val   -> Loss: {val_metrics['loss']:.4f} | Acc: {val_metrics['accuracy']:.4f} | Macro F1: {val_metrics['macro_f1']:.4f}")
+            top2_str = f" | Top-2 Acc: {val_metrics['top2_accuracy']:.4f}" if 'top2_accuracy' in val_metrics else ""
+            print(f"  Val   -> Loss: {val_metrics['loss']:.4f} | Acc: {val_metrics['accuracy']:.4f} | Macro F1: {val_metrics['macro_f1']:.4f}{top2_str}")
             
             # Write to Tensorboard
             self.writer.add_scalar("Loss/Train", train_metrics['loss'], epoch)
@@ -196,6 +209,8 @@ class SecBERTTrainer:
             self.writer.add_scalar("Epoch_Time", epoch_time, epoch)
             self.writer.add_scalar("Gradient_Norm", train_metrics['grad_norm'], epoch)
             self.writer.add_scalar("GPU_Memory_GB", gpu_mem, epoch)
+            if 'top2_accuracy' in val_metrics:
+                self.writer.add_scalar("Top2_Accuracy/Val", val_metrics['top2_accuracy'], epoch)
             
             # Save history
             epoch_record = {

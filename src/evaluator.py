@@ -95,6 +95,7 @@ def evaluate_model_on_test_split(dirs, test_loader, cfg):
     
     all_preds = []
     all_labels = []
+    all_logits = []
     
     print("  Evaluating test set...")
     with torch.no_grad():
@@ -108,6 +109,7 @@ def evaluate_model_on_test_split(dirs, test_loader, cfg):
             
             all_preds.extend(preds.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
+            all_logits.extend(outputs.logits.cpu().float().numpy())
             
     # Generate Reports
     results_dir = dirs["results"]
@@ -124,5 +126,7 @@ def evaluate_model_on_test_split(dirs, test_loader, cfg):
     print("======================================\n")
     
     from src.metrics import compute_metrics
-    test_metrics = compute_metrics(all_labels, all_preds)
+    test_metrics = compute_metrics(all_labels, all_preds, logits=all_logits)
+    if 'top2_accuracy' in test_metrics:
+        print(f"  [+] Top-2 Accuracy: {test_metrics['top2_accuracy']:.4f}")
     return test_metrics

@@ -5,7 +5,7 @@ import sys
 from src.config import parse_args, load_and_validate_config
 from src.utils import set_seeds, log_environment, print_training_header
 from src.experiment import init_experiment, finalize_experiment
-from src.dataset import load_data_splits, verify_data_splits, get_dataloaders
+from src.dataset import load_data_splits, verify_data_splits, get_dataloaders, load_class_weights
 from src.tokenizer import get_tokenizer, verify_tokenizer
 from src.model import get_model
 from src.trainer import SecBERTTrainer
@@ -36,7 +36,15 @@ def main():
 
     # 7. Trainer Assembly
     train_loader, val_loader, test_loader = get_dataloaders(train_df, val_df, test_df, tokenizer, cfg)
-    trainer = SecBERTTrainer(model, cfg, exp_paths, train_loader, val_loader, tokenizer)
+
+    # 7b. Load class weights for weighted CrossEntropyLoss
+    class_weights = load_class_weights(
+        cfg.dataset.class_weights_path,
+        num_labels=cfg.model.num_labels,
+        device=cfg.system.device
+    )
+
+    trainer = SecBERTTrainer(model, cfg, exp_paths, train_loader, val_loader, tokenizer, class_weights=class_weights)
 
     print_training_header(cfg, len(train_df), len(val_df), len(test_df), exp_id=exp_paths["exp_id"])
 

@@ -140,12 +140,22 @@ class SecBERTDataset(Dataset):
         }
 
 
-def load_class_weights(weights_path, device="cpu"):
+def load_class_weights(weights_path, num_labels=20, device="cpu"):
     """
-    Load action class weights array from JSON file.
-    Implemented in Phase 2.7 (Loss & Class Weights).
+    Load action class weights from JSON file and return a torch tensor
+    suitable for nn.CrossEntropyLoss(weight=...).
     """
-    pass
+    with open(weights_path, "r") as f:
+        class_weights_dict = json.load(f)
+
+    weights_list = [0.0] * num_labels
+    for k, v in class_weights_dict.items():
+        idx = int(k)
+        if idx < num_labels:
+            weights_list[idx] = float(v)
+
+    weights_tensor = torch.tensor(weights_list, dtype=torch.float32).to(device)
+    return weights_tensor
 
 
 def get_dataloaders(train_df, val_df, test_df, tokenizer, cfg):

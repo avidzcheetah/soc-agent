@@ -7,9 +7,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 
-def compute_metrics(labels, preds):
+def compute_metrics(labels, preds, logits=None):
     """
     Calculate Evaluation metrics.
+    Optionally accepts raw logits for top-k accuracy computation.
     """
     acc = accuracy_score(labels, preds)
     macro_f1 = f1_score(labels, preds, average='macro', zero_division=0)
@@ -20,7 +21,7 @@ def compute_metrics(labels, preds):
     from sklearn.metrics import matthews_corrcoef
     mcc = matthews_corrcoef(labels, preds)
     
-    return {
+    result = {
         "accuracy": acc,
         "macro_f1": macro_f1,
         "weighted_f1": weighted_f1,
@@ -28,6 +29,22 @@ def compute_metrics(labels, preds):
         "recall": recall,
         "mcc": mcc
     }
+    
+    # Top-2 Accuracy (useful for PPO — is the correct action in the top 2 candidates?)
+    if logits is not None:
+        try:
+            from sklearn.metrics import top_k_accuracy_score
+            import numpy as np
+            logits_np = np.array(logits)
+            labels_np = np.array(labels)
+            # Only compute if we have more than 2 unique labels
+            if len(np.unique(labels_np)) > 2:
+                top2_acc = top_k_accuracy_score(labels_np, logits_np, k=2, labels=np.arange(logits_np.shape[1]))
+                result["top2_accuracy"] = top2_acc
+        except Exception:
+            pass  # Gracefully skip if sklearn version doesn't support it
+    
+    return result
 
 def generate_classification_report(labels, preds, output_path):
     """
