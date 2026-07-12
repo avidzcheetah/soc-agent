@@ -22,7 +22,7 @@ tokenizer:
 training:
   batch_size: 16
   gradient_accumulation_steps: 1
-  epochs: 10
+  epochs: 20
   mixed_precision: true
   label_smoothing: 0.1
 
@@ -37,7 +37,7 @@ scheduler:
   warmup_ratio: 0.1
 
 early_stopping:
-  patience: 2
+  patience: 4
   min_delta: 0.0
 
 checkpoint:
