@@ -29,6 +29,18 @@ def load_data_splits(cfg):
     val_df   = pd.read_csv(cfg.dataset.val_path)
     test_df  = pd.read_csv(cfg.dataset.test_path)
 
+    # Prepend CISA Phase tags (EXP_005)
+    action_space_df = pd.read_csv(cfg.dataset.action_space_path)
+    phase_map = dict(zip(action_space_df['Index'], action_space_df['CISA Phase']))
+    
+    def prepend_phase(df):
+        df['text'] = df.apply(lambda row: f"[{phase_map[row['action_label']]}] {row['text']}", axis=1)
+        return df
+
+    train_df = prepend_phase(train_df)
+    val_df = prepend_phase(val_df)
+    test_df = prepend_phase(test_df)
+
     if cfg.system.debug:
         n = cfg.dataset.debug_size
         train_df = train_df.sample(min(n, len(train_df)), random_state=cfg.system.seed).reset_index(drop=True)
