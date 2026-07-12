@@ -50,7 +50,7 @@ class SecBERTTrainer:
         )
         
         # Label Smoothing (EXP_002B)
-        ls_value = cfg.training.get('label_smoothing', 0.0)
+        ls_value = getattr(cfg.training, 'label_smoothing', 0.0)
         self.criterion = torch.nn.CrossEntropyLoss(label_smoothing=ls_value)
         if ls_value > 0:
             print(f"  [PASS] Label Smoothing enabled (value: {ls_value})")
