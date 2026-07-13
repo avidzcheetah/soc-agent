@@ -8,7 +8,7 @@ model:
   num_labels: 20
 
 dataset:
-  train_path: "data/processed/train_augmented.csv"
+  train_path: "data/processed/train_augmented_v2.csv"
   val_path: "data/processed/val.csv"
   test_path: "data/processed/test.csv"
   class_weights_path: "data/class_weights.json"
