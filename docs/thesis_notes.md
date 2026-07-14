@@ -28,3 +28,11 @@ Moving forward, the research methodology follows a strict ablation study approac
 3. Only techniques proven to improve the baseline will be combined in the final model (**EXP_003**).
 
 The next phase explores Label Smoothing (**EXP_002B**) and CISA Phase Tagging (**EXP_002C**). If these regularization and semantic techniques fail to elevate the rare classes, the study will have established strong empirical justification for introducing generative data augmentation.
+
+## 4. Architectural Adjustment: SecBERT and PPO Separation
+
+Rather than describing SecBERT as predicting the final response action, the architecture should be described as follows:
+
+**SecBERT is fine-tuned on incident-response labels so that its encoder learns incident semantics. During the reinforcement learning phase, the classifier head is discarded. The frozen encoder generates contextual incident embeddings, which form part of the PPO agent's state representation. The PPO agent is responsible for selecting the optimal response action and sequence of actions.**
+
+This aligns the implementation with standard reinforcement learning practice and clearly separates the roles of representation learning (SecBERT) and decision-making (PPO). It resolves the apparent contradiction: SecBERT is not replacing PPO, but rather providing the rich semantic understanding that allows PPO to make better decisions.
