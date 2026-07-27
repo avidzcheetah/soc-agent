@@ -44,6 +44,12 @@ Here is the step-by-step story of how we improved the model, what worked, what f
 - **Result:** **Macro F1: 0.695 - 0.714** (Regression / Plateau 📉)
 - **Takeaway:** We hit a wall. Adding more synthetic data introduced LLM-style repetitiveness and noise, which degraded the sharp decision boundaries the model had built. A model cannot learn information that simply doesn't exist in the data.
 
+## 7. Numerical Precision Check: FP32 vs. FP16
+- **Experiment:** `EXP_20260727_001` (EXP_002G)
+- **What we tried:** Re-ran `EXP_20260713_001` configuration with FP16 mixed precision disabled (`mixed_precision: false`) to test if half precision reduced numerical accuracy.
+- **Result:** **Macro F1: 0.712** vs **0.730 (FP16)** | **Top-2 Acc: 0.970** vs **0.968 (FP16)** | **Epoch time: ~520s** vs **~380s (FP16)**
+- **Takeaway:** Full FP32 precision provided no performance benefit (Macro F1 0.712 vs 0.730) while increasing training time by ~35%. This empirically validates that FP16 mixed precision does not degrade model quality for our task, making FP16 the optimal choice for efficiency.
+
 ---
 
 ## The Final Decision: Architecture Lock
