@@ -1,0 +1,63 @@
+experiment:
+  name: "secbert_finetuning"
+  project: "soc-agent"
+  description: "FP32 Ablation: Replicate EXP_20260713_001 with mixed_precision disabled to measure FP16 precision impact"
+
+model:
+  name: "jackaduma/SecBERT"
+  num_labels: 20
+
+dataset:
+  train_path: "data/processed/train_augmented.csv"
+  val_path: "data/processed/val.csv"
+  test_path: "data/processed/test.csv"
+  class_weights_path: "data/class_weights.json"
+  action_space_path: "data/action_space.csv"
+  debug_size: 200
+
+tokenizer:
+  name: "jackaduma/SecBERT"
+  max_length: 512
+
+training:
+  batch_size: 16
+  gradient_accumulation_steps: 1
+  epochs: 10
+  mixed_precision: false
+  label_smoothing: 0.1
+
+optimizer:
+  type: "AdamW"
+  learning_rate: 0.00003
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+
+scheduler:
+  type: "linear"
+  warmup_ratio: 0.1
+
+early_stopping:
+  patience: 2
+  min_delta: 0.0
+
+checkpoint:
+  monitor: "val_loss"
+  mode: "min"
+  resume: false
+  save_dir: "models/checkpoints"
+  best_dir: "models/best_model"
+
+evaluation:
+  metric: "macro_f1"
+  zero_division: 0
+
+logging:
+  tensorboard: true
+  log_interval: 10
+  log_dir: "logs/tensorboard"
+
+system:
+  seed: 42
+  device: "cuda"
+  dry_run: false
+  debug: false
