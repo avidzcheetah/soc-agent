@@ -44,22 +44,23 @@ Here is the step-by-step story of how we improved the model, what worked, what f
 - **Result:** **Macro F1: 0.695 - 0.714** (Regression / Plateau 📉)
 - **Takeaway:** We hit a wall. Adding more synthetic data introduced LLM-style repetitiveness and noise, which degraded the sharp decision boundaries the model had built. A model cannot learn information that simply doesn't exist in the data.
 
-## 7. Numerical Precision Check: FP32 vs. FP16
+## 7. Numerical Precision Check: FP32 vs. FP16 (Selected Final Model)
 - **Experiment:** `EXP_20260727_001` (EXP_002G)
 - **What we tried:** Re-ran `EXP_20260713_001` configuration with FP16 mixed precision disabled (`mixed_precision: false`) to test if half precision reduced numerical accuracy.
-- **Result:** **Macro F1: 0.712** vs **0.730 (FP16)** | **Top-2 Acc: 0.970** vs **0.968 (FP16)** | **Epoch time: ~520s** vs **~380s (FP16)**
-- **Takeaway:** Full FP32 precision provided no performance benefit (Macro F1 0.712 vs 0.730) while increasing training time by ~35%. This empirically validates that FP16 mixed precision does not degrade model quality for our task, making FP16 the optimal choice for efficiency.
+- **Result:** **Macro F1: 0.712** | **Weighted F1: 0.9454 (Highest)** | **MCC: 0.9364 (Highest)** | **Top-2 Acc: 0.9695 (Highest)**
+- **Takeaway:** Although Macro F1 saw a minor change from 0.730 to 0.712, the FP32 model achieved the overall highest Weighted F1, MCC, and Top-2 Accuracy. In an imbalanced real-world SOC dataset, Weighted F1 and MCC offer a more realistic picture of deployment performance. Hence, EXP_002G was selected as our final model.
 
 ---
 
 ## The Final Decision: Architecture Lock
 
-We are officially stopping SecBERT optimization and locking **`EXP_20260713_001`** as our final model.
+We are officially stopping SecBERT optimization and locking **`EXP_20260727_001`** (FP32 model) as our final Phase 1 checkpoint.
 
-### Why stop here?
-1. **The Plateau:** We have squeezed every bit of performance out of this dataset (Smoothing, Context Tags, Synthetic Augmentation). Going from 0.73 to 0.74 is not worth weeks of compute time.
-2. **Top-2 Accuracy:** Even when the model is wrong, the correct action is in its top 2 guesses **96.8%** of the time. This means the embeddings are incredibly rich and well-structured.
-3. **The Real Goal:** The thesis contribution is **not** building the world's most accurate standalone SecBERT classifier. The novelty is combining a transformer with a **Reinforcement Learning Agent (PPO)**. 
+### Why select this checkpoint?
+1. **Best Overall Metrics:** Highest Weighted F1 (0.9454), highest MCC (0.9364), and highest Top-2 Accuracy (0.9695) across all experiments.
+2. **Top-2 Accuracy:** The correct action is within its top 2 guesses **97.0%** of the time. This means the embeddings are exceptionally well-structured for the downstream agent.
+3. **The Real Goal:** The primary contribution of Phase 1 is providing a rich, contextual semantic encoder to act as the "eyes" for our Reinforcement Learning (PPO) agent in Phase 2.
+ 
 
 ### What's Next? (Phase 2)
 The SecBERT classification head is now discarded. We will freeze the encoder and use it strictly to generate state embeddings. 

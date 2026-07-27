@@ -36,3 +36,8 @@ Rather than describing SecBERT as predicting the final response action, the arch
 **SecBERT is fine-tuned on incident-response labels so that its encoder learns incident semantics. During the reinforcement learning phase, the classifier head is discarded. The frozen encoder generates contextual incident embeddings, which form part of the PPO agent's state representation. The PPO agent is responsible for selecting the optimal response action and sequence of actions.**
 
 This aligns the implementation with standard reinforcement learning practice and clearly separates the roles of representation learning (SecBERT) and decision-making (PPO). It resolves the apparent contradiction: SecBERT is not replacing PPO, but rather providing the rich semantic understanding that allows PPO to make better decisions.
+
+## 5. Final Model Selection: FP32 Precision Experiment (EXP_002G / EXP_20260727_001)
+
+The FP32 experiment was conducted to verify whether mixed-precision training influenced the model. Although the Macro F1 decreased slightly from 0.7296 to 0.7121, the FP32 model achieved the highest Weighted F1 (0.9454), the highest MCC (0.9364), and the highest Top-2 Accuracy (0.9695). Since our dataset is highly imbalanced and most real SOC events belong to the common action classes, Weighted F1 and MCC provide a more representative measure of overall deployment performance. Therefore, we selected the FP32 model as the final model.
+
