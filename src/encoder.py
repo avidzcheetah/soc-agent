@@ -22,9 +22,7 @@ class SecBERTStateEncoder:
     """
 
     # Default path to our locked final model (EXP_002G / FP32 Ablation)
-    DEFAULT_CHECKPOINT = os.path.join(
-        "experiments", "EXP_20260727_001", "checkpoints", "best_model"
-    )
+    DEFAULT_CHECKPOINT = os.path.join("models", "secbert_finetuned")
 
     def __init__(self, checkpoint_path=None, normalize=False):
         """
@@ -37,7 +35,7 @@ class SecBERTStateEncoder:
 
         Args:
             checkpoint_path: Path to the best_model directory.
-                             Defaults to EXP_20260727_001.
+                             Defaults to models/secbert_finetuned.
             normalize: If True, L2-normalize embeddings before
                        returning. This maps all vectors onto the
                        unit sphere, which can help PPO by making
@@ -54,7 +52,7 @@ class SecBERTStateEncoder:
         if not os.path.isdir(self.checkpoint_path):
             raise FileNotFoundError(
                 f"Checkpoint not found at: {self.checkpoint_path}\n"
-                f"Expected the best_model directory from EXP_20260727_001."
+                f"Expected the best_model directory at models/secbert_finetuned."
             )
 
         # ── Step 1: Load tokenizer ───────────────────────────────
