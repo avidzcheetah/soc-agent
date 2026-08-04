@@ -8,8 +8,8 @@ from torch.optim import AdamW
 from transformers import get_linear_schedule_with_warmup
 from torch.utils.tensorboard import SummaryWriter
 
-from src.callbacks import EarlyStopping, save_epoch_checkpoint
-from src.metrics import compute_metrics
+from src.secbert.callbacks import EarlyStopping, save_epoch_checkpoint
+from src.secbert.metrics import compute_metrics
 
 class SecBERTTrainer:
     """

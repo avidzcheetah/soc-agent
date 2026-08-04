@@ -2,14 +2,14 @@
 
 import os
 import sys
-from src.config import parse_args, load_and_validate_config
-from src.utils import set_seeds, log_environment, print_training_header
-from src.experiment import init_experiment, finalize_experiment
-from src.dataset import load_data_splits, verify_data_splits, get_dataloaders
-from src.tokenizer import get_tokenizer, verify_tokenizer
-from src.model import get_model
-from src.trainer import SecBERTTrainer
-from src.evaluator import evaluate_model_on_test_split, verify_saved_model
+from src.secbert.config import parse_args, load_and_validate_config
+from src.secbert.utils import set_seeds, log_environment, print_training_header
+from src.secbert.experiment import init_experiment, finalize_experiment
+from src.secbert.dataset import load_data_splits, verify_data_splits, get_dataloaders
+from src.secbert.tokenizer import get_tokenizer, verify_tokenizer
+from src.secbert.model import get_model
+from src.secbert.trainer import SecBERTTrainer
+from src.secbert.evaluator import evaluate_model_on_test_split, verify_saved_model
 
 def main():
     # 1. Config & CLI

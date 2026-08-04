@@ -2,7 +2,7 @@ import os
 import torch
 import sys
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-from src.metrics import generate_classification_report, plot_confusion_matrices
+from src.secbert.metrics import generate_classification_report, plot_confusion_matrices
 
 def verify_saved_model(best_model_dir):
     """
@@ -125,7 +125,7 @@ def evaluate_model_on_test_split(dirs, test_loader, cfg):
     
     print("======================================\n")
     
-    from src.metrics import compute_metrics
+    from src.secbert.metrics import compute_metrics
     test_metrics = compute_metrics(all_labels, all_preds, logits=all_logits)
     if 'top2_accuracy' in test_metrics:
         print(f"  [+] Top-2 Accuracy: {test_metrics['top2_accuracy']:.4f}")

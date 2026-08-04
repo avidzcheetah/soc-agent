@@ -54,7 +54,7 @@ evaluation:
 logging:
   tensorboard: true
   log_interval: 10
-  log_dir: "logs/tensorboard"
+  log_dir: "logs/secbert"
 
 system:
   seed: 42
