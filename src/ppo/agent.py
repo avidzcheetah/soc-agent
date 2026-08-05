@@ -240,77 +240,92 @@ class PPOAgent:
         if len(advantages) > 1:
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        # 4. K-Epochs training loop
+        # 4. K-Epochs training loop with Shuffled Mini-Batches (Step 8)
+        num_samples = states_tensor.shape[0]
         total_policy_loss = 0.0
         total_value_loss = 0.0
         total_entropy = 0.0
+        num_updates = 0
 
         for epoch in range(self.k_epochs):
-            # Step 7.2: Clipped Policy (Actor) Loss
+            # Generate randomized index permutation for each epoch
+            permutation = torch.randperm(num_samples, device=self.device)
 
-            # A. Forward pass through the current Actor to obtain new logits
-            new_logits = self.actor(states_tensor)
+            # Iterate through mini-batches of size self.batch_size
+            for start_idx in range(0, num_samples, self.batch_size):
+                batch_indices = permutation[start_idx : start_idx + self.batch_size]
 
-            # B. Create categorical distribution from new logits
-            dist = Categorical(logits=new_logits)
+                # Mini-batch slices
+                b_states = states_tensor[batch_indices]
+                b_actions = actions_tensor[batch_indices]
+                b_old_log_probs = old_log_probs_tensor[batch_indices]
+                b_advantages = advantages[batch_indices]
+                b_returns = returns[batch_indices]
 
-            # Step 7.4: Policy Entropy (Exploration Bonus)
-            dist_entropy = dist.entropy().mean()
-            total_entropy += dist_entropy.item()
+                # Step 7.2: Clipped Policy (Actor) Loss
+                # A. Forward pass through the current Actor to obtain new logits
+                new_logits = self.actor(b_states)
 
-            # C. Compute new log probabilities for the SAME actions taken during rollout
-            new_log_probs = dist.log_prob(actions_tensor)
+                # B. Create categorical distribution from new logits
+                dist = Categorical(logits=new_logits)
 
-            # D. Compute probability ratio r_t = π_θ(a|s) / π_θ_old(a|s)
-            ratio = torch.exp(new_log_probs - old_log_probs_tensor)
+                # Step 7.4: Policy Entropy (Exploration Bonus)
+                dist_entropy = dist.entropy().mean()
 
-            # E. Two surrogate objectives
-            surr1 = ratio * advantages                                           # Unclipped
-            surr2 = torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * advantages  # Clipped
+                # C. Compute new log probabilities for the SAME actions taken during rollout
+                new_log_probs = dist.log_prob(b_actions)
 
-            # F. Take the minimum (pessimistic bound)
-            # G. Negate because PyTorch minimizes, but we want to maximize expected reward
-            policy_loss = -torch.min(surr1, surr2).mean()
+                # D. Compute probability ratio r_t = π_θ(a|s) / π_θ_old(a|s)
+                ratio = torch.exp(new_log_probs - b_old_log_probs)
 
-            total_policy_loss += policy_loss.item()
+                # E. Two surrogate objectives
+                surr1 = ratio * b_advantages                                           # Unclipped
+                surr2 = torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * b_advantages  # Clipped
 
-            # Step 7.5: Actor Optimization (including entropy bonus for exploration)
-            actor_loss = policy_loss - self.c2_entropy * dist_entropy
+                # F. Take the minimum (pessimistic bound)
+                # G. Negate because PyTorch minimizes, but we want to maximize expected reward
+                policy_loss = -torch.min(surr1, surr2).mean()
 
-            self.actor_optimizer.zero_grad()
-            actor_loss.backward()
-            nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
-            self.actor_optimizer.step()
+                # Step 7.5: Actor Optimization (including entropy bonus for exploration)
+                actor_loss = policy_loss - self.c2_entropy * dist_entropy
 
-            # Step 7.3: Critic (Value) Loss
+                self.actor_optimizer.zero_grad()
+                actor_loss.backward()
+                nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
+                self.actor_optimizer.step()
 
-            # A. Forward pass through the Critic to obtain predicted state values
-            state_values = self.critic(states_tensor)
+                # Step 7.3: Critic (Value) Loss
+                # A. Forward pass through the Critic to obtain predicted state values
+                state_values = self.critic(b_states)
 
-            # B. Reshape [num_samples, 1] -> [num_samples] to match returns shape
-            state_values = state_values.squeeze(-1)
+                # B. Reshape [batch_size, 1] -> [batch_size] to match returns shape
+                state_values = state_values.squeeze(-1)
 
-            # C. Mean Squared Error (MSE) between predictions V(s) and target returns R(t)
-            value_loss = F.mse_loss(state_values, returns.detach())
+                # C. Mean Squared Error (MSE) between predictions V(s) and target returns R(t)
+                value_loss = F.mse_loss(state_values, b_returns.detach())
 
-            total_value_loss += value_loss.item()
+                # Step 7.5: Critic Optimization
+                self.critic_optimizer.zero_grad()
+                value_loss.backward()
+                nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
+                self.critic_optimizer.step()
 
-            # Step 7.5: Critic Optimization
-            self.critic_optimizer.zero_grad()
-            value_loss.backward()
-            nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
-            self.critic_optimizer.step()
+                # Accumulate step metrics
+                total_policy_loss += policy_loss.item()
+                total_value_loss += value_loss.item()
+                total_entropy += dist_entropy.item()
+                num_updates += 1
 
         # 5. Clear trajectory memory buffer after update
         memory.clear()
 
         return {
-            "num_samples": float(states_tensor.shape[0]),
+            "num_samples": float(num_samples),
             "mean_advantage": float(advantages.mean().item()),
             "std_advantage": float(advantages.std().item()),
-            "policy_loss": total_policy_loss / self.k_epochs,
-            "value_loss": total_value_loss / self.k_epochs,
-            "entropy": total_entropy / self.k_epochs,
+            "policy_loss": total_policy_loss / num_updates if num_updates > 0 else 0.0,
+            "value_loss": total_value_loss / num_updates if num_updates > 0 else 0.0,
+            "entropy": total_entropy / num_updates if num_updates > 0 else 0.0,
         }
 
 
