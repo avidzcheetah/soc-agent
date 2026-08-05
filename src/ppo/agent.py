@@ -7,8 +7,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.distributions import Categorical
-from typing import Optional, Dict, Any, Tuple, Union
+from typing import Optional, Dict, Any, Tuple, Union, List
 from src.ppo.networks import ActorNetwork, CriticNetwork
+from src.ppo.memory import PPOMemory
 
 
 class PPOAgent:
@@ -136,4 +137,69 @@ class PPOAgent:
             log_prob = dist.log_prob(action)
 
         return int(action.item()), float(log_prob.item()), float(state_value.squeeze().item())
+
+    def compute_gae(
+        self,
+        memory: PPOMemory,
+        next_value: float = 0.0,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Compute Generalized Advantage Estimation (GAE) and discounted returns
+        by iterating backwards through the collected rollout trajectory in memory.
+
+        Formulation:
+            δ_t = r_t + γ * V(s_{t+1}) * (1 - done_t) - V(s_t)
+            A_t = δ_t + γ * λ * (1 - done_t) * A_{t+1}
+            R_t = A_t + V(s_t)
+
+        Args:
+            memory: PPOMemory buffer containing stored trajectory lists.
+            next_value: Value of state following the last step (0.0 for terminal/cutoff).
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]:
+                - advantages: 1D Tensor of shape [T] representing GAE advantages.
+                - returns: 1D Tensor of shape [T] representing target returns R(t).
+        """
+        rewards = memory.rewards
+        values = memory.values
+        dones = memory.dones
+        t_len = len(rewards)
+
+        if t_len == 0:
+            return torch.empty(0, device=self.device), torch.empty(0, device=self.device)
+
+        advantages: List[float] = []
+        returns: List[float] = []
+        gae = 0.0
+
+        for t in reversed(range(t_len)):
+            # Determine next state value and non-terminal mask
+            if t == t_len - 1:
+                next_val = next_value
+            else:
+                next_val = values[t + 1]
+
+            non_terminal = 1.0 - float(dones[t])
+
+            # 1. TD error delta_t
+            delta = rewards[t] + self.gamma * next_val * non_terminal - values[t]
+
+            # 2. GAE advantage A_t
+            gae = delta + self.gamma * self.gae_lambda * non_terminal * gae
+            advantages.append(gae)
+
+            # 3. Return R_t = A_t + V(s_t)
+            ret = gae + values[t]
+            returns.append(ret)
+
+        # Reverse backwards lists to match original chronological trajectory order
+        advantages.reverse()
+        returns.reverse()
+
+        advantages_tensor = torch.tensor(advantages, dtype=torch.float32, device=self.device)
+        returns_tensor = torch.tensor(returns, dtype=torch.float32, device=self.device)
+
+        return advantages_tensor, returns_tensor
+
 
