@@ -46,7 +46,7 @@ class PPOAgent:
         gamma: float = 0.99,
         gae_lambda: float = 0.95,
         clip_eps: float = 0.2,
-        c1_value_loss: float = 0.5,
+        c1_value_loss: float = 0.5,  # Unused with separate optimizers; kept for API compatibility
         c2_entropy: float = 0.01,
         max_grad_norm: float = 1.0,
         k_epochs: int = 4,
@@ -291,7 +291,7 @@ class PPOAgent:
             state_values = state_values.squeeze(-1)
 
             # C. Mean Squared Error (MSE) between predictions V(s) and target returns R(t)
-            value_loss = F.mse_loss(state_values, returns)
+            value_loss = F.mse_loss(state_values, returns.detach())
 
             total_value_loss += value_loss.item()
 

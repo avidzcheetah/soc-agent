@@ -168,6 +168,7 @@ class SOCEnvironment:
         """
         if seed is not None:
             np.random.seed(seed)
+            torch.manual_seed(seed)
 
         # 1. Pick one incident
         sample = self._get_next_sample()
