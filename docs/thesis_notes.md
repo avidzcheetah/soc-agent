@@ -41,3 +41,18 @@ This aligns the implementation with standard reinforcement learning practice and
 
 The FP32 experiment was conducted to verify whether mixed-precision training influenced the model. Although the Macro F1 decreased slightly from 0.7296 to 0.7121, the FP32 model achieved the highest Weighted F1 (0.9454), the highest MCC (0.9364), and the highest Top-2 Accuracy (0.9695). Since our dataset is highly imbalanced and most real SOC events belong to the common action classes, Weighted F1 and MCC provide a more representative measure of overall deployment performance. Therefore, we selected the FP32 model as the final model.
 
+## 6. Formulation of the SOC Environment as a Contextual Bandit
+
+**Formal Statement for Thesis & Methodology:**
+
+> *"The environment is formulated as a contextual bandit, where each SOC alert is treated as an independent decision point. Consequently, the PPO agent optimizes per-incident action selection without modeling temporal dependencies between alerts. This formulation is appropriate because the objective of the proposed system is to recommend the most suitable response for each individual security incident rather than to learn long-horizon control policies."*
+
+### Mathematical Justification:
+In standard Markov Decision Processes (MDPs), transitions follow $P(s_{t+1} | s_t, a_t)$ where actions alter the environment state dynamics across sequential trajectories. 
+
+In enterprise Security Operations Centers:
+1. **Incident Granularity:** Each security alert represents a discrete, self-contained event signature (e.g., an individual C2 beacon, brute force spike, or privilege escalation attempt).
+2. **Action Independence:** Selecting a mitigation action $a_t \in \{0, \dots, 19\}$ for incident $t$ yields immediate feedback (correct containment vs. operational penalty: $r_t \in \{+1.0, -1.0\}$) without dictating the arrival distribution or semantic content of subsequent un-correlated alerts.
+3. **PPO Applicability:** Utilizing Proximal Policy Optimization under this contextual bandit formulation allows the agent to maintain stable policy improvement, leverage Generalized Advantage Estimation across rollout batches, and prevent policy collapse via entropy regularization while learning non-linear policy mappings over 768-dimensional contextual representations.
+
+

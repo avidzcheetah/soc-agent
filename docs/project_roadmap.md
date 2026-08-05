@@ -19,21 +19,33 @@ This document tracks the overall progress of the Autonomous SOC Agent project ac
   - [x] Cleanly separate Phase 1 codebase into `src/secbert/` and `scripts/secbert/`
   - [x] Set up the `models/` directory structure for production usage
 
-## Phase 2: Deep Reinforcement Learning (In Progress)
+## Phase 2: Deep Reinforcement Learning (PPO v1.0 Core Complete)
 - [x] **SecBERT State Encoder** (`src/encoder.py`)
-  - Freeze the chosen SecBERT model to extract 768-dimensional state embeddings securely.
+  - Frozen fine-tuned SecBERT model extracting verified 768-dimensional contextual state embeddings.
 - [x] **SOC Environment** (`src/environment.py`)
-  - Gymnasium contextual bandit environment mapping alerts to the 20 mitigation actions.
-  - Fully tested and verified across reset, step, reward calculation, and eval traversal.
-- [ ] **Policy Network** (`policy_network.py`)
-  - The actor network deciding which action to take based on the state.
-- [ ] **Value Network** (`value_network.py`)
-  - The critic network estimating the expected reward for a given state.
-- [ ] **PPO Agent** (`ppo_agent.py`)
-  - The core Proximal Policy Optimization reinforcement learning algorithm.
-- [ ] **Training Script** (`train_ppo.py`)
-  - The entry point to train the PPO agent within the SOC Environment.
-- [ ] **Evaluation Script** (`evaluate_ppo.py`)
-  - Metrics and baseline comparisons against DQN/LLMs/Rule-based systems.
-- [ ] **Connect to the Ubuntu SOC Lab**
-  - Real-world integration with Wazuh SIEM, osquery, and Suricata.
+  - Gymnasium contextual bandit environment mapping incident embeddings to the 20 mitigation actions.
+  - Verified across reset, step, reward calculation (+1 / -1), eval traversal, and full reproducibility seeding (NumPy + PyTorch).
+- [x] **Actor (Policy) Network** (`src/ppo/networks.py:ActorNetwork`)
+  - 3-layer MLP (`768 → 512 → 256 → 20`) outputting unnormalized action logits for categorical sampling.
+- [x] **Critic (Value) Network** (`src/ppo/networks.py:CriticNetwork`)
+  - 3-layer MLP (`768 → 512 → 256 → 1`) estimating scalar state values $V(s)$.
+- [x] **Trajectory Buffer** (`src/ppo/memory.py:PPOMemory`)
+  - Trajectory memory buffer storing `(state, action, reward, log_prob, value, done)` transitions with clean lifecycle management.
+- [x] **Generalized Advantage Estimation (GAE)** (`src/ppo/agent.py:compute_gae`)
+  - Backward-pass GAE $(\gamma=0.99, \lambda=0.95)$ and target returns calculation $R_t = \hat{A}_t + V(s_t)$.
+- [x] **PPO Core Agent & Optimization Loop** (`src/ppo/agent.py:PPOAgent`)
+  - PPO clipped surrogate objective ($L^{CLIP}, \epsilon=0.2$).
+  - Policy entropy bonus ($S[\pi], c_2=0.01$) for controlled exploration.
+  - Value function MSE loss ($L^{VF}$) with detached targets.
+  - Independent Adam optimizers (`lr_actor=3e-4`, `lr_critic=1e-3`) with gradient clipping (`max_grad_norm=1.0`).
+  - Passed rigorous formal code audit (95/100).
+- [ ] **Step 8: Mini-Batch Updates**
+  - Shuffled mini-batch rollout training for sample-efficient gradient updates across epochs.
+- [ ] **Step 9: PPO Training Pipeline** (`src/ppo/trainer.py` / `train_ppo.py`)
+  - Complete training loop with epoch-level logging, TensorBoard metrics, and early stopping.
+- [ ] **Step 10: Checkpointing & Model Persistence**
+  - Model weight saving, loading, and best-policy checkpoint selection based on validation reward/accuracy.
+- [ ] **Step 11: Evaluation Pipeline & Baselines** (`evaluate_ppo.py`)
+  - Comprehensive evaluation against Random, Rule-Based, and Supervised Baselines (Top-1 / Top-2 accuracy, class-level F1).
+- [ ] **Phase 3: Connect to the Ubuntu SOC Lab**
+  - Real-world integration with Wazuh SIEM, osquery, and Suricata for live telemetry and response automation.
