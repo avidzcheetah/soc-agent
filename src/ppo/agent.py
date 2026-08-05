@@ -242,6 +242,7 @@ class PPOAgent:
         # 4. K-Epochs training loop
         total_policy_loss = 0.0
         total_value_loss = 0.0
+        total_entropy = 0.0
 
         for epoch in range(self.k_epochs):
             # Step 7.2: Clipped Policy (Actor) Loss
@@ -251,6 +252,10 @@ class PPOAgent:
 
             # B. Create categorical distribution from new logits
             dist = Categorical(logits=new_logits)
+
+            # Step 7.4: Policy Entropy (Exploration Bonus)
+            dist_entropy = dist.entropy().mean()
+            total_entropy += dist_entropy.item()
 
             # C. Compute new log probabilities for the SAME actions taken during rollout
             new_log_probs = dist.log_prob(actions_tensor)
@@ -281,7 +286,7 @@ class PPOAgent:
 
             total_value_loss += value_loss.item()
 
-            # Placeholders for Step 7.4 (Entropy Bonus), Step 7.5 (Optimizers)
+            # Placeholders for Step 7.5 (Combined Loss & Optimizers)
 
         # 5. Clear trajectory memory buffer after update
         memory.clear()
@@ -292,6 +297,7 @@ class PPOAgent:
             "std_advantage": float(advantages.std().item()),
             "policy_loss": total_policy_loss / self.k_epochs,
             "value_loss": total_value_loss / self.k_epochs,
+            "entropy": total_entropy / self.k_epochs,
         }
 
 
