@@ -6,6 +6,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.distributions import Categorical
 from typing import Optional, Dict, Any, Tuple, Union, List
 from src.ppo.networks import ActorNetwork, CriticNetwork
@@ -238,11 +239,49 @@ class PPOAgent:
         if len(advantages) > 1:
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        # 4. K-Epochs training loop skeleton
+        # 4. K-Epochs training loop
+        total_policy_loss = 0.0
+        total_value_loss = 0.0
+
         for epoch in range(self.k_epochs):
-            # Placeholders for Step 7.2 (Policy Loss), Step 7.3 (Value Loss),
-            # Step 7.4 (Entropy Bonus), Step 7.5 (Optimizers), Step 7.6 (Mini-batches)
-            pass
+            # Step 7.2: Clipped Policy (Actor) Loss
+
+            # A. Forward pass through the current Actor to obtain new logits
+            new_logits = self.actor(states_tensor)
+
+            # B. Create categorical distribution from new logits
+            dist = Categorical(logits=new_logits)
+
+            # C. Compute new log probabilities for the SAME actions taken during rollout
+            new_log_probs = dist.log_prob(actions_tensor)
+
+            # D. Compute probability ratio r_t = π_θ(a|s) / π_θ_old(a|s)
+            ratio = torch.exp(new_log_probs - old_log_probs_tensor)
+
+            # E. Two surrogate objectives
+            surr1 = ratio * advantages                                           # Unclipped
+            surr2 = torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * advantages  # Clipped
+
+            # F. Take the minimum (pessimistic bound)
+            # G. Negate because PyTorch minimizes, but we want to maximize expected reward
+            policy_loss = -torch.min(surr1, surr2).mean()
+
+            total_policy_loss += policy_loss.item()
+
+            # Step 7.3: Critic (Value) Loss
+
+            # A. Forward pass through the Critic to obtain predicted state values
+            state_values = self.critic(states_tensor)
+
+            # B. Reshape [num_samples, 1] -> [num_samples] to match returns shape
+            state_values = state_values.squeeze(-1)
+
+            # C. Mean Squared Error (MSE) between predictions V(s) and target returns R(t)
+            value_loss = F.mse_loss(state_values, returns)
+
+            total_value_loss += value_loss.item()
+
+            # Placeholders for Step 7.4 (Entropy Bonus), Step 7.5 (Optimizers)
 
         # 5. Clear trajectory memory buffer after update
         memory.clear()
@@ -251,6 +290,8 @@ class PPOAgent:
             "num_samples": float(states_tensor.shape[0]),
             "mean_advantage": float(advantages.mean().item()),
             "std_advantage": float(advantages.std().item()),
+            "policy_loss": total_policy_loss / self.k_epochs,
+            "value_loss": total_value_loss / self.k_epochs,
         }
 
 
