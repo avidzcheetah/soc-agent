@@ -202,4 +202,56 @@ class PPOAgent:
 
         return advantages_tensor, returns_tensor
 
+    def update(self, memory: PPOMemory) -> Dict[str, float]:
+        """
+        Execute one PPO optimization cycle over the collected trajectory in memory.
+
+        Step 7.1 (Preparation Stage):
+            1. Compute advantages and returns via GAE.
+            2. Convert memory lists (states, actions, log_probs) to PyTorch tensors on device.
+            3. Normalize advantages for numerical stability across batches.
+            4. Execute k_epochs optimization loop (loss computation to be implemented in 7.2-7.5).
+            5. Clear memory after update.
+
+        Args:
+            memory: PPOMemory containing collected trajectory rollouts.
+
+        Returns:
+            Dict[str, float]: Training metrics/losses dictionary.
+        """
+        if len(memory) == 0:
+            return {}
+
+        # 1. Compute GAE advantages and target returns
+        advantages, returns = self.compute_gae(memory)
+
+        # 2. Convert trajectory lists into tensors on target device
+        states_list = [
+            torch.as_tensor(s, dtype=torch.float32) if isinstance(s, np.ndarray) else s.float()
+            for s in memory.states
+        ]
+        states_tensor = torch.stack(states_list).to(self.device)
+        actions_tensor = torch.tensor(memory.actions, dtype=torch.int64, device=self.device)
+        old_log_probs_tensor = torch.tensor(memory.log_probs, dtype=torch.float32, device=self.device)
+
+        # 3. Normalize advantages across the entire rollout trajectory
+        if len(advantages) > 1:
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+        # 4. K-Epochs training loop skeleton
+        for epoch in range(self.k_epochs):
+            # Placeholders for Step 7.2 (Policy Loss), Step 7.3 (Value Loss),
+            # Step 7.4 (Entropy Bonus), Step 7.5 (Optimizers), Step 7.6 (Mini-batches)
+            pass
+
+        # 5. Clear trajectory memory buffer after update
+        memory.clear()
+
+        return {
+            "num_samples": float(states_tensor.shape[0]),
+            "mean_advantage": float(advantages.mean().item()),
+            "std_advantage": float(advantages.std().item()),
+        }
+
+
 
