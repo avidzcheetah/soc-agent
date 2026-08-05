@@ -48,13 +48,13 @@ class PPOAgent:
         clip_eps: float = 0.2,
         c1_value_loss: float = 0.5,
         c2_entropy: float = 0.01,
+        max_grad_norm: float = 1.0,
         k_epochs: int = 4,
         batch_size: int = 64,
         device: Optional[str] = None,
     ):
         """
         Step 1 of PPO Agent: Initialize attributes and hyperparameters owned by the agent.
-        No neural networks, learning logic, or buffers are initialized yet.
         """
         # 1. State and Action dimensions
         self.state_dim = state_dim
@@ -70,9 +70,10 @@ class PPOAgent:
         self.actor = ActorNetwork(state_dim=self.state_dim, action_dim=self.action_dim).to(self.device)
         self.critic = CriticNetwork(state_dim=self.state_dim).to(self.device)
 
-        # 4. Optimizers (Placeholders for upcoming steps)
-        self.actor_optimizer = None
-        self.critic_optimizer = None
+        # 4. Optimizers & Gradient Clipping (Step 7.5)
+        self.max_grad_norm = max_grad_norm
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
+        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr_critic)
 
         # 5. PPO Hyperparameters
         self.lr_actor = lr_actor
@@ -273,6 +274,14 @@ class PPOAgent:
 
             total_policy_loss += policy_loss.item()
 
+            # Step 7.5: Actor Optimization (including entropy bonus for exploration)
+            actor_loss = policy_loss - self.c2_entropy * dist_entropy
+
+            self.actor_optimizer.zero_grad()
+            actor_loss.backward()
+            nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
+            self.actor_optimizer.step()
+
             # Step 7.3: Critic (Value) Loss
 
             # A. Forward pass through the Critic to obtain predicted state values
@@ -286,7 +295,11 @@ class PPOAgent:
 
             total_value_loss += value_loss.item()
 
-            # Placeholders for Step 7.5 (Combined Loss & Optimizers)
+            # Step 7.5: Critic Optimization
+            self.critic_optimizer.zero_grad()
+            value_loss.backward()
+            nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
+            self.critic_optimizer.step()
 
         # 5. Clear trajectory memory buffer after update
         memory.clear()
