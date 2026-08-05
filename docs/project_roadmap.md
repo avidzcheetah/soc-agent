@@ -22,8 +22,9 @@ This document tracks the overall progress of the Autonomous SOC Agent project ac
 ## Phase 2: Deep Reinforcement Learning (In Progress)
 - [x] **SecBERT State Encoder** (`src/encoder.py`)
   - Freeze the chosen SecBERT model to extract 768-dimensional state embeddings securely.
-- [ ] **SOC Environment** (`environment.py`)
+- [x] **SOC Environment** (`src/environment.py`)
   - Gymnasium contextual bandit environment mapping alerts to the 20 mitigation actions.
+  - Fully tested and verified across reset, step, reward calculation, and eval traversal.
 - [ ] **Policy Network** (`policy_network.py`)
   - The actor network deciding which action to take based on the state.
 - [ ] **Value Network** (`value_network.py`)
