@@ -26,7 +26,7 @@ def main():
     parser.add_argument("--test_data", type=str, default="data/processed/test.csv", help="Path to test CSV")
     parser.add_argument("--model_path", type=str, default="models/secbert_finetuned", help="Path to SecBERT")
     parser.add_argument("--checkpoint_path", type=str, default="models/ppo_final/best_ppo_policy.pt", help="Path to PPO checkpoint")
-    args = parser.parse_argument()
+    args = parser.parse_args()
 
     print("=" * 70)
     print("SOC PPO Final Evaluation (Step 10.5)")
