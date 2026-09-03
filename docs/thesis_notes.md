@@ -56,3 +56,18 @@ In enterprise Security Operations Centers:
 3. **PPO Applicability:** Utilizing Proximal Policy Optimization under this contextual bandit formulation allows the agent to maintain stable policy improvement, leverage Generalized Advantage Estimation across rollout batches, and prevent policy collapse via entropy regularization while learning non-linear policy mappings over 768-dimensional contextual representations.
 
 
+## 7. Evaluation Metrics and Checkpoint Selection for PPO
+
+To establish a robust, research-grade evaluation pipeline for the PPO agent in the presence of an imbalanced 20-action space:
+
+1. **Deterministic Evaluation**: During evaluation phases, the PPO agent uses greedy rgmax selection over policy logits instead of stochastic sampling. This provides a true measure of the learned policy's capability rather than its exploration noise.
+2. **Macro F1 Metric**: Because the SOC dataset contains highly imbalanced response classes (e.g., monitor is overwhelmingly more common than quarantine_file), pure accuracy is an insufficient metric. A policy could achieve high accuracy by merely predicting the majority class. Therefore, the evaluation pipeline computes **Macro F1**, **Weighted F1**, and **MCC (Matthews Correlation Coefficient)**.
+3. **Checkpoint Strategy**: The "best" PPO policy checkpoint (est_ppo_policy.pt) is saved exclusively when the validation **Macro F1** improves, ensuring the final research model is the one that generalized best across all response classes, not just the majority classes.
+## 8. Step 10.4 PPO Training Methodology
+
+The final PPO training experiment utilizes the following configuration:
+- **Total steps**: 204,800 (100 iterations × 2,048 rollout steps)
+- **Validation**: 1,539 samples (evaluated entirely every 5 iterations to capture a highly stable Macro F1 metric)
+
+**Stochastic Sampling Strategy**: 
+The 204,800 environment interactions do *not* represent 204,800 unique incidents. The environment continuously samples stochastically from the pool of 12,312 distinct training incidents. Because the environment is formulated as an independent contextual bandit (done=True at every step), this repeated random sampling is mathematically equivalent to independently drawing i.i.d. incident contexts from the dataset distribution. The PPO agent optimizes the policy by repeatedly experiencing permutations of these incidents over multiple epochs, analogous to standard supervised mini-batch training.

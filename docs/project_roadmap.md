@@ -39,12 +39,15 @@ This document tracks the overall progress of the Autonomous SOC Agent project ac
   - Value function MSE loss ($L^{VF}$) with detached targets.
   - Independent Adam optimizers (`lr_actor=3e-4`, `lr_critic=1e-3`) with gradient clipping (`max_grad_norm=1.0`).
   - Passed rigorous formal code audit (95/100).
-- [ ] **Step 8: Mini-Batch Updates**
+- [x] **Step 8: Mini-Batch Updates**
   - Shuffled mini-batch rollout training for sample-efficient gradient updates across epochs.
-- [ ] **Step 9: PPO Training Pipeline** (`src/ppo/trainer.py` / `train_ppo.py`)
+- [x] **Step 9: PPO Training Pipeline** (`src/ppo/trainer.py` / `train_ppo.py`)
   - Complete training loop with epoch-level logging, TensorBoard metrics, and early stopping.
-- [ ] **Step 10: Checkpointing & Model Persistence**
-  - Model weight saving, loading, and best-policy checkpoint selection based on validation reward/accuracy.
+- [x] **Step 10: Checkpointing & Research Evaluation Upgrade**
+  - Model weight saving, loading, and best-policy checkpoint selection based on validation Macro F1.
+  - Contextual Bandit GAE formulation fixed (`done=True`).
+  - Upgraded metrics (Macro F1, Weighted F1, MCC) for class imbalance.
+  - PPO Sanity Training passed on real SecBERT embeddings.
 - [ ] **Step 11: Evaluation Pipeline & Baselines** (`evaluate_ppo.py`)
   - Comprehensive evaluation against Random, Rule-Based, and Supervised Baselines (Top-1 / Top-2 accuracy, class-level F1).
 - [ ] **Phase 3: Connect to the Ubuntu SOC Lab**

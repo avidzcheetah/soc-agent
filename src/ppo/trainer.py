@@ -12,6 +12,7 @@ import time
 from typing import Dict, Any, Optional, List, Tuple, Union
 import numpy as np
 import torch
+from sklearn.metrics import f1_score, matthews_corrcoef
 
 from src.environment import SOCEnvironment
 from src.ppo.agent import PPOAgent
@@ -70,7 +71,9 @@ class PPOTrainer:
 
         # 3. State and metric tracking
         self.history: List[Dict[str, float]] = []
-        self.best_eval_accuracy: float = -1.0
+        self.best_eval_macro_f1: float = -1.0
+        self.last_eval_y_true: List[int] = []
+        self.last_eval_y_pred: List[int] = []
         self._current_obs: Optional[torch.Tensor] = None
 
         if self.save_dir is not None:
@@ -78,14 +81,23 @@ class PPOTrainer:
 
     def collect_rollout(self) -> Dict[str, float]:
         """
-        Collect a rollout trajectory of size `self.rollout_steps` from the environment.
+        Collect a rollout of `self.rollout_steps` independent incident decisions.
+
+        Contextual Bandit Treatment:
+            Each SOC incident is an independent decision point. The environment
+            serves a continuous stream of unrelated alerts, but each decision
+            is self-contained: the reward for incident t has no dependency on
+            incidents t-1 or t+1. Therefore, every transition is stored with
+            done=True, which causes GAE to reduce to single-step advantage:
+                A_t = r_t - V(s_t)      (no inter-incident temporal coupling)
+                R_t = r_t               (immediate reward IS the full return)
 
         Steps:
             1. Ensure environment is initialized (reset if necessary).
             2. For each step:
                a. Agent samples action, log_prob, state_value from observation.
                b. Environment steps with chosen action.
-               c. Store transition in PPOMemory buffer.
+               c. Store transition in PPOMemory with done=True (contextual bandit).
                d. Accumulate reward and accuracy statistics.
             3. Return rollout summary metrics.
 
@@ -104,7 +116,11 @@ class PPOTrainer:
 
             # 2. Environment transition
             next_obs, reward, terminated, truncated, info = self.env.step(action)
-            done = bool(terminated or truncated)
+
+            # Contextual Bandit: Each incident is an independent decision.
+            # Force done=True so GAE computes single-step advantages A_t = r_t - V(s_t)
+            # rather than creating spurious temporal dependencies between unrelated alerts.
+            done = True
 
             # 3. Store in memory buffer
             self.memory.store(
@@ -135,36 +151,55 @@ class PPOTrainer:
 
     def evaluate(self, num_steps: Optional[int] = None) -> Dict[str, float]:
         """
-        Evaluate the current policy on the evaluation environment without training updates.
+        Evaluate the current policy deterministically on the evaluation environment.
+
+        Uses greedy argmax action selection (no stochastic sampling) to measure
+        the learned policy itself rather than exploration noise.
 
         Args:
             num_steps: Number of evaluation incidents to process. Defaults to `self.eval_steps`.
 
         Returns:
-            Dict[str, float]: Evaluation metrics (eval_mean_reward, eval_accuracy).
+            Dict[str, float]: Evaluation metrics (eval_mean_reward, eval_accuracy, 
+                              eval_macro_f1, eval_weighted_f1, eval_mcc).
         """
         target_env = self.eval_env if self.eval_env is not None else self.env
         steps = num_steps if num_steps is not None else self.eval_steps
 
         obs, _ = target_env.reset()
         total_reward = 0.0
-        correct_count = 0
+        
+        y_true = []
+        y_pred = []
 
         for _ in range(steps):
-            action, _, _ = self.agent.select_action(obs)
+            action, _, _ = self.agent.select_action(obs, deterministic=True)
             next_obs, reward, _, _, info = target_env.step(action)
 
             total_reward += reward
-            if info.get("correct", False):
-                correct_count += 1
+            y_pred.append(action)
+            y_true.append(info["ground_truth"])
 
             obs = next_obs
 
-        eval_accuracy = correct_count / steps if steps > 0 else 0.0
+        # Compute metrics
+        eval_accuracy = sum(1 for yt, yp in zip(y_true, y_pred) if yt == yp) / steps if steps > 0 else 0.0
         eval_reward = total_reward / steps if steps > 0 else 0.0
+        
+        # Scikit-learn metrics for class-imbalanced evaluation
+        macro_f1 = float(f1_score(y_true, y_pred, average="macro", zero_division=0)) if steps > 0 else 0.0
+        weighted_f1 = float(f1_score(y_true, y_pred, average="weighted", zero_division=0)) if steps > 0 else 0.0
+        mcc = float(matthews_corrcoef(y_true, y_pred)) if steps > 0 else 0.0
+
+        # Retain latest evaluation predictions for confusion matrix / per-class reporting
+        self.last_eval_y_true = y_true
+        self.last_eval_y_pred = y_pred
 
         return {
             "eval_accuracy": float(eval_accuracy),
+            "eval_macro_f1": macro_f1,
+            "eval_weighted_f1": weighted_f1,
+            "eval_mcc": mcc,
             "eval_mean_reward": float(eval_reward),
             "eval_steps": float(steps),
         }
@@ -181,7 +216,7 @@ class PPOTrainer:
             "critic_state_dict": self.agent.critic.state_dict(),
             "actor_optimizer_state_dict": self.agent.actor_optimizer.state_dict(),
             "critic_optimizer_state_dict": self.agent.critic_optimizer.state_dict(),
-            "best_eval_accuracy": self.best_eval_accuracy,
+            "best_eval_macro_f1": self.best_eval_macro_f1,
             "hyperparameters": {
                 "state_dim": self.agent.state_dim,
                 "action_dim": self.agent.action_dim,
@@ -212,7 +247,7 @@ class PPOTrainer:
             self.agent.actor_optimizer.load_state_dict(checkpoint["actor_optimizer_state_dict"])
         if "critic_optimizer_state_dict" in checkpoint and self.agent.critic_optimizer is not None:
             self.agent.critic_optimizer.load_state_dict(checkpoint["critic_optimizer_state_dict"])
-        self.best_eval_accuracy = checkpoint.get("best_eval_accuracy", -1.0)
+        self.best_eval_macro_f1 = checkpoint.get("best_eval_macro_f1", -1.0)
 
     def train(self, verbose: bool = True) -> List[Dict[str, float]]:
         """
@@ -267,14 +302,14 @@ class PPOTrainer:
                 eval_metrics = self.evaluate()
                 iter_metrics.update(eval_metrics)
 
-                # Checkpoint best policy
-                if eval_metrics["eval_accuracy"] > self.best_eval_accuracy:
-                    self.best_eval_accuracy = eval_metrics["eval_accuracy"]
+                # Checkpoint best policy based on validation Macro F1
+                if eval_metrics["eval_macro_f1"] > self.best_eval_macro_f1:
+                    self.best_eval_macro_f1 = eval_metrics["eval_macro_f1"]
                     if self.save_dir is not None:
                         best_path = os.path.join(self.save_dir, "best_ppo_policy.pt")
                         self.save_checkpoint(best_path)
                         if verbose:
-                            print(f"  [*] New best eval accuracy: {self.best_eval_accuracy:.4f} -> Saved to {best_path}")
+                            print(f"  [*] New best eval Macro F1: {self.best_eval_macro_f1:.4f} -> Saved to {best_path}")
 
             self.history.append(iter_metrics)
 
@@ -295,7 +330,10 @@ class PPOTrainer:
                 )
 
                 if "eval_accuracy" in iter_metrics:
-                    log_str += f" | EvalAcc: {iter_metrics['eval_accuracy']:6.2%}"
+                    eval_acc = iter_metrics['eval_accuracy']
+                    eval_f1 = iter_metrics['eval_macro_f1']
+                    eval_mcc = iter_metrics['eval_mcc']
+                    log_str += f" | EvalAcc: {eval_acc:6.2%} | MacF1: {eval_f1:.4f} | MCC: {eval_mcc:+.4f}"
 
                 print(log_str)
 

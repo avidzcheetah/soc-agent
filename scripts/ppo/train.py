@@ -7,7 +7,9 @@ Usage:
 
 import os
 import sys
+import random
 import argparse
+import numpy as np
 import pandas as pd
 import torch
 
@@ -54,10 +56,14 @@ def parse_args():
 def main():
     args = parse_args()
 
-    # Set seeds
+    # Set seeds for full reproducibility across all random sources
+    random.seed(args.seed)
+    np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
     print("=" * 70)
     print("Initializing SOC PPO Training Pipeline")
@@ -75,7 +81,7 @@ def main():
     # 2. Initialize SecBERT State Encoder
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"[*] Initializing SecBERT State Encoder on {device}...")
-    encoder = SecBERTStateEncoder(model_path=args.model_path, device=device)
+    encoder = SecBERTStateEncoder(checkpoint_path=args.model_path)
 
     # 3. Create SOC Environments
     print("[*] Creating Gymnasium SOC Environments...")
@@ -116,8 +122,8 @@ def main():
 
     print("\n" + "=" * 70)
     print(f"[SUCCESS] PPO Training completed across {len(history)} iterations.")
-    if trainer.best_eval_accuracy >= 0:
-        print(f"          Best Evaluation Accuracy: {trainer.best_eval_accuracy:.4%}")
+    if trainer.best_eval_macro_f1 >= 0:
+        print(f"          Best Evaluation Macro F1: {trainer.best_eval_macro_f1:.4f}")
     print("=" * 70)
 
 

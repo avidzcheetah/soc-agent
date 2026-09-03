@@ -90,9 +90,7 @@ Improved Policy & Value Functions
 
 ---
 
-## 5. Next Steps
-
-- **Step 8:** Mini-batch PPO updates with random batch shuffling.
-- **Step 9:** PPO Trainer class (`src/ppo/trainer.py`) with epoch loops, validation eval, and logging.
-- **Step 10:** Checkpoint management and persistence (`models/ppo/`).
-- **Step 11:** Comparative evaluation framework (Random vs. Rule-based vs. Supervised vs. PPO).
+- [x] **Step 8:** Mini-batch PPO updates with random batch shuffling.
+- [x] **Step 9:** PPO Trainer class (`src/ppo/trainer.py`) with epoch loops, validation eval, and logging.
+- [x] **Step 10:** Checkpoint management, Evaluation upgrade to Macro F1, and PPO Sanity Training (`models/ppo/`).
+- [ ] **Step 11:** Comparative evaluation framework (Random vs. Rule-based vs. Supervised vs. PPO).

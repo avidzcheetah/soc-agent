@@ -89,26 +89,34 @@ class PPOAgent:
     def select_action(
         self,
         state: Union[torch.Tensor, np.ndarray],
+        deterministic: bool = False,
     ) -> Tuple[int, float, float]:
         """
-        Select an action given a state using stochastic sampling from the Actor policy,
-        and evaluate the expected state value using the Critic.
+        Select an action given a state observation.
+
+        Two modes of operation:
+            - Stochastic (deterministic=False): Samples from the Categorical policy
+              distribution for exploration during training rollouts.
+            - Deterministic (deterministic=True): Selects the highest-probability action
+              via argmax for consistent evaluation of the learned policy.
 
         Steps:
             1. Move state to the agent's computing device.
             2. Pass state through the Actor network to obtain logits.
             3. Create a Categorical distribution from the logits.
-            4. Sample one action from the distribution (stochastic exploration).
+            4. Select action: sample (stochastic) or argmax (deterministic).
             5. Compute log probability log π(a|s) of the chosen action.
             6. Pass state through the Critic network to obtain expected state value V(s).
             7. Return (action, log_prob, state_value).
 
         Args:
             state: 768-dim state embedding (torch.Tensor or np.ndarray).
+            deterministic: If True, use greedy argmax action selection instead of
+                stochastic sampling. Use True for evaluation, False for training.
 
         Returns:
             Tuple[int, float, float]:
-                - action (int): Sampled discrete action ID in [0, action_dim - 1].
+                - action (int): Discrete action ID in [0, action_dim - 1].
                 - log_prob (float): Log probability of the chosen action.
                 - state_value (float): Critic estimated state value V(s).
         """
@@ -132,8 +140,11 @@ class PPOAgent:
             # 3. Categorical distribution
             dist = Categorical(logits=logits)
 
-            # 4. Sample action
-            action = dist.sample()
+            # 4. Select action: greedy argmax for evaluation, stochastic for training
+            if deterministic:
+                action = torch.argmax(logits)
+            else:
+                action = dist.sample()
 
             # 5. Compute log probability
             log_prob = dist.log_prob(action)
