@@ -164,7 +164,11 @@ class PPOTrainer:
                               eval_macro_f1, eval_weighted_f1, eval_mcc).
         """
         target_env = self.eval_env if self.eval_env is not None else self.env
-        steps = num_steps if num_steps is not None else self.eval_steps
+        
+        if hasattr(target_env, "current_index"):
+            target_env.current_index = 0
+            
+        steps = len(target_env.df) if hasattr(target_env, "df") else (num_steps if num_steps is not None else self.eval_steps)
 
         obs, _ = target_env.reset()
         total_reward = 0.0
@@ -187,8 +191,9 @@ class PPOTrainer:
         eval_reward = total_reward / steps if steps > 0 else 0.0
         
         # Scikit-learn metrics for class-imbalanced evaluation
-        macro_f1 = float(f1_score(y_true, y_pred, average="macro", zero_division=0)) if steps > 0 else 0.0
-        weighted_f1 = float(f1_score(y_true, y_pred, average="weighted", zero_division=0)) if steps > 0 else 0.0
+        action_classes = list(range(self.agent.action_dim)) if hasattr(self.agent, "action_dim") else list(range(20))
+        macro_f1 = float(f1_score(y_true, y_pred, average="macro", zero_division=0, labels=action_classes)) if steps > 0 else 0.0
+        weighted_f1 = float(f1_score(y_true, y_pred, average="weighted", zero_division=0, labels=action_classes)) if steps > 0 else 0.0
         mcc = float(matthews_corrcoef(y_true, y_pred)) if steps > 0 else 0.0
 
         # Retain latest evaluation predictions for confusion matrix / per-class reporting

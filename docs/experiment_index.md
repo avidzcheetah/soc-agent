@@ -18,3 +18,12 @@ This document maps our logical experiment names (e.g., `EXP_001`) to the automat
 
 *Note: Following EXP_002G, we are officially locking **EXP_20260727_001** (FP32) as the final Phase 1 model checkpoint (Weighted F1: 0.9454, MCC: 0.9364, Top-2 Acc: 0.970). The SecBERT encoder is now frozen. Development moves entirely to Phase 2: Building the PPO environment and training the RL decision-making agent.*
 
+## Phase 2: PPO Reward Formulation & Agent Optimization (Validation Split: 1,539 samples)
+
+| Logical Name | System ID | Description / Reward Formulation | Result / Verdict |
+|--------------|-----------|----------------------------------|------------------|
+| **EXP_PPO_000** | `EXP_20260801_001` | **Original PPO.** Naive scalar rewards (+1 correct, -1 incorrect). | Val Acc: 93.44%, Macro F1: 0.6114, Weighted F1: 0.9300, MCC: 0.9224. Baseline PPO. Severe minority collapse. |
+| **EXP_PPO_001** | `EXP_20260810_001` | **Class-Aware Logarithmic Reward.** Inverse-frequency weighted: $W_c = 1.0 + \ln(N_{\max}/N_c)$. | Val Acc: 93.83%, Macro F1: **0.6281** (+0.0167), Weighted F1: 0.9342, MCC: 0.9268. Recovered `enable_deep_logging` (0.80), but `block_dest_ip` collapsed. |
+| **EXP_PPO_002** | `EXP_20260909_001` | **Response-Aware Reward (Semantic Phase Penalty).** Exact correct: +1.0; wrong action but correct CISA phase: -0.5; wrong phase: -1.0. | Val Acc: 93.83%, Macro F1: **0.6219** (+0.0105 vs Exp 0), Weighted F1: 0.9332, MCC: 0.9269. Recovered `escalate_to_human` (0.3636), `dns_sinkhole` (0.9231), but minority actions remain weak. |
+
+

@@ -128,7 +128,7 @@ Place your raw cyber event datasets in `data/raw/`. The repository includes prep
 
 #### CISSM Cyber Events Dataset
 ```bash
-python preprocess_cissm.py
+python scripts/secbert/preprocess_cissm.py
 ```
 This script will:
 * Map dataset columns to standard formats (e.g., `event_type` → `attack_type`).
@@ -142,7 +142,7 @@ This script will:
 The [rcATT dataset](https://github.com/vlegoy/rcATT) contains ~1,490 real-world cyber threat intelligence reports (scraped blog posts from Cisco Talos, Palo Alto Unit 42, Accenture iDefense, etc.) with multi-label MITRE ATT&CK tactic and technique annotations.
 
 ```bash
-python preprocess_rcatt.py
+python scripts/secbert/preprocess_rcatt.py
 ```
 This script will:
 * Clean boilerplate/navigation text from scraped web pages.
@@ -154,6 +154,33 @@ This script will:
 * Output **1,490 records** to `data/processed/rcatt_processed.csv`.
 
 > **Combined training data: 18,218 labeled records** across both datasets.
+
+### 2. SecBERT Fine-Tuning (Phase 1)
+
+To fine-tune the SecBERT model on the preprocessed data, run:
+```bash
+python scripts/secbert/train_secbert.py
+```
+This will train the model to embed cyber event descriptions and classify them into the 20 mitigation actions. The trained model checkpoint will be saved in the `models/` directory.
+
+### 3. Deep Reinforcement Learning (PPO) Training (Phase 2)
+
+To train the PPO agent using the frozen fine-tuned SecBERT model as a state encoder, run:
+```bash
+python scripts/ppo/train.py
+```
+This trains the PPO policy inside the custom Gymnasium environment. Checkpoints will be saved during training.
+
+### 4. Evaluation
+
+You can evaluate both the baseline SecBERT classification performance and the PPO agent performance:
+```bash
+# Evaluate baseline SecBERT
+python scripts/evaluate_baseline.py
+
+# Evaluate PPO Agent
+python scripts/ppo/evaluate_ppo.py
+```
 
 ---
 
@@ -225,13 +252,21 @@ escalate_to_human    ●      ●      ●       ●       ●       ●      �
 
 ## Development Roadmap & Next Steps
 
+### Phase 1: Representation Learning (Completed)
 - [x] Set up repository, environments, and basic workspace.
-- [x] Implement preprocessing for the CISSM Dataset (`preprocess_cissm.py`).
+- [x] Implement preprocessing for the CISSM Dataset (`scripts/secbert/preprocess_cissm.py`).
 - [x] Define 20-action discrete action space from CISA Playbooks + MITRE CAR.
-- [x] Preprocess the rcATT threat intelligence dataset (`preprocess_rcatt.py`).
-- [ ] Implement SecBERT fine-tuning script (`train_secbert.py`).
-- [ ] Build custom Gymnasium RL environment (`soc_env.py`).
-- [ ] Implement and train the PPO RL Agent (`train_ppo.py`).
+- [x] Preprocess the rcATT threat intelligence dataset (`scripts/secbert/preprocess_rcatt.py`).
+- [x] Implement SecBERT fine-tuning script (`scripts/secbert/train_secbert.py`).
+
+### Phase 2: Deep Reinforcement Learning (Completed)
+- [x] Build custom Gymnasium RL environment (`src/environment.py`).
+- [x] Implement SecBERT State Encoder (`src/encoder.py`).
+- [x] Implement and train the PPO RL Agent (`scripts/ppo/train.py`).
+- [x] Develop Evaluation Pipeline (`scripts/evaluate_baseline.py`, `scripts/ppo/evaluate_ppo.py`).
+
+### Phase 3: Integration (Pending)
 - [ ] Configure Wazuh, Caldera, and OSQuery simulation setups.
+- [ ] Connect the agent to the Ubuntu SOC Lab for live telemetry and response automation.
 - [ ] Run integrated evaluation and generate performance reports.
 

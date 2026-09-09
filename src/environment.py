@@ -44,6 +44,10 @@ class SOCEnvironment:
         else:
             self.df = df.reset_index(drop=True)
 
+        # 1.5 Load Action to Phase mapping dynamically from action_space.csv
+        action_df = pd.read_csv("data/action_space.csv")
+        self.action_to_phase = dict(zip(action_df["Index"], action_df["CISA Phase"]))
+
         # 2. The SecBERT encoder
         self.encoder = encoder if encoder is not None else SecBERTStateEncoder()
 
@@ -85,15 +89,9 @@ class SOCEnvironment:
             return self.df.iloc[idx]
 
     # ── Step 3: State Construction ───────────────────────────
-    # Phase mapping used during Phase 1 training (EXP_005)
-    PHASE_MAP = {
-        0: "Detection", 1: "Detection", 2: "Detection",
-        3: "Containment", 4: "Containment", 5: "Containment", 6: "Containment",
-        7: "Containment", 8: "Containment", 9: "Containment", 10: "Containment",
-        11: "Containment", 12: "Containment", 13: "Eradication", 14: "Eradication",
-        15: "Eradication", 16: "Eradication", 17: "Detection", 18: "Containment",
-        19: "All Phases",
-    }
+    # Phase mapping is now dynamically loaded in __init__ as self.action_to_phase.
+    # We provide a fallback for _prepare_text in case it's called before init finishes.
+    _FALLBACK_PHASE_MAP = {0: "Detection"}
 
     def _prepare_text(self, sample: pd.Series) -> str:
         """
@@ -121,7 +119,7 @@ class SOCEnvironment:
         # Otherwise look up phase by action_label index
         if "action_label" in sample and pd.notna(sample["action_label"]):
             action_idx = int(sample["action_label"])
-            phase = self.PHASE_MAP.get(action_idx, "Detection")
+            phase = getattr(self, "action_to_phase", self._FALLBACK_PHASE_MAP).get(action_idx, "Detection")
             return f"[{phase}] {raw_text}"
 
         return raw_text
@@ -221,9 +219,19 @@ class SOCEnvironment:
         # 1. Look at ground truth
         ground_truth = int(self.current_sample["action_label"])
 
-        # 2. Compare and calculate reward
+        # 2. Compare and calculate response-aware reward
         is_correct = (int(action) == ground_truth)
-        reward = 1.0 if is_correct else -1.0
+        
+        if is_correct:
+            reward = 1.0
+        else:
+            pred_phase = self.action_to_phase.get(int(action), "Unknown")
+            gt_phase = self.action_to_phase.get(ground_truth, "Unknown")
+            
+            if pred_phase == gt_phase or pred_phase == "All Phases" or gt_phase == "All Phases":
+                reward = -0.5
+            else:
+                reward = -1.0
 
         # 3. Advance evaluation pointer if in eval mode
         if self.mode == "eval":
