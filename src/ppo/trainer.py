@@ -79,6 +79,8 @@ class PPOTrainer:
         self.history: List[Dict[str, float]] = []
         self.best_eval_macro_f1: float = -1.0
         self.best_eval_composite: float = -1.0   # composite of all four metrics
+        # Stores the four individual metrics for the best composite checkpoint
+        self.best_composite_info: Dict[str, float] = {}
         self.last_eval_y_true: List[int] = []
         self.last_eval_y_pred: List[int] = []
         self._current_obs: Optional[torch.Tensor] = None
@@ -338,6 +340,15 @@ class PPOTrainer:
 
                 if composite > self.best_eval_composite:
                     self.best_eval_composite = composite
+                    # Record the four metrics for this best checkpoint for final reporting
+                    self.best_composite_info = {
+                        "iteration": iteration,
+                        "macro_f1": eval_metrics["eval_macro_f1"],
+                        "accuracy": eval_metrics["eval_accuracy"],
+                        "weighted_f1": eval_metrics["eval_weighted_f1"],
+                        "mcc": eval_metrics["eval_mcc"],
+                        "composite": composite,
+                    }
                     if self.save_dir is not None:
                         best_path = os.path.join(self.save_dir, "best_ppo_policy.pt")
                         self.save_checkpoint(best_path)
@@ -348,7 +359,7 @@ class PPOTrainer:
                                 f"Acc={eval_metrics['eval_accuracy']:.4f}, "
                                 f"WF1={eval_metrics['eval_weighted_f1']:.4f}, "
                                 f"MCC={eval_metrics['eval_mcc']:.4f}) "
-                                f"-> Saved"
+                                f"-> Saved @ iter {iteration}"
                             )
 
             self.history.append(iter_metrics)

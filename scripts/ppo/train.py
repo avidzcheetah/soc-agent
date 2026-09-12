@@ -56,6 +56,11 @@ def parse_args():
     parser.add_argument("--bc_lambda", type=float, default=0.0,
                         help="BC cross-entropy preservation coefficient (0.0 = disabled). "
                              "Adds supervised cross-entropy loss to the actor during PPO updates.")
+    parser.add_argument("--sampling", type=str, default="uniform",
+                        choices=["uniform", "balanced"],
+                        help="Training experience sampling strategy: "
+                             "'uniform' = random (default), "
+                             "'balanced' = capped class-frequency-weighted sampling to improve minority-class coverage.")
 
     return parser.parse_args()
 
@@ -92,7 +97,8 @@ def main():
 
     # 3. Create SOC Environments
     print("[*] Creating Gymnasium SOC Environments...")
-    train_env = SOCEnvironment(df=train_df, encoder=encoder, mode="train")
+    print(f"    Sampling strategy: {args.sampling}")
+    train_env = SOCEnvironment(df=train_df, encoder=encoder, mode="train", sampling=args.sampling)
     eval_env = SOCEnvironment(df=eval_df, encoder=encoder, mode="eval") if eval_df is not None else None
 
     # 4. Initialize PPO Agent
@@ -154,10 +160,20 @@ def main():
     # 6. Execute Training
     history = trainer.train(verbose=True)
 
+    # ── Final Summary ──────────────────────────────────────────────────
     print("\n" + "=" * 70)
     print(f"[SUCCESS] PPO Training completed across {len(history)} iterations.")
-    if trainer.best_eval_macro_f1 >= 0:
-        print(f"          Best Evaluation Macro F1: {trainer.best_eval_macro_f1:.4f}")
+    if trainer.best_composite_info:
+        info = trainer.best_composite_info
+        print(f"\n  Best checkpoint saved at iteration {int(info['iteration'])}/{args.total_iterations}:")
+        print(f"    Composite Score : {info['composite']:.4f}")
+        print(f"    Macro F1        : {info['macro_f1']:.4f}")
+        print(f"    Accuracy        : {info['accuracy']:.4%}")
+        print(f"    Weighted F1     : {info['weighted_f1']:.4f}")
+        print(f"    MCC             : {info['mcc']:.4f}")
+        print(f"    Saved to        : {os.path.join(args.save_dir, 'best_ppo_policy.pt')}")
+    else:
+        print("  No evaluation checkpoint was saved (no eval_interval hit).")
     print("=" * 70)
 
 

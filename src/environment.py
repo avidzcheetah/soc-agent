@@ -29,6 +29,7 @@ class SOCEnvironment:
         df: Union[pd.DataFrame, str],
         encoder: Optional[SecBERTStateEncoder] = None,
         mode: str = "train",
+        sampling: str = "uniform",
     ):
         """
         Step 1: Initialize the 6 core attributes owned by the environment.
@@ -48,6 +49,19 @@ class SOCEnvironment:
         action_df = pd.read_csv("data/action_space.csv")
         self.action_to_phase = dict(zip(action_df["Index"], action_df["CISA Phase"]))
 
+        # 1.6 Sampling strategy
+        # 'uniform': pure random (default, as used in all experiments to date)
+        # 'balanced': capped inverse-sqrt frequency weighting
+        #   P(sample_i) ∝ min(1/sqrt(N_class_i), cap_weight)
+        #   Cap = 5 × base_weight of the most common class, so no minority class
+        #   can receive more than 5× the experience of the majority class.
+        if sampling not in ("uniform", "balanced"):
+            raise ValueError(f"sampling must be 'uniform' or 'balanced', got '{sampling}'")
+        self.sampling = sampling
+        self._sample_weights: Optional[np.ndarray] = None
+        if self.sampling == "balanced":
+            self._build_sample_weights()
+
         # 2. The SecBERT encoder
         self.encoder = encoder if encoder is not None else SecBERTStateEncoder()
 
@@ -65,24 +79,59 @@ class SOCEnvironment:
             raise ValueError(f"Invalid mode '{mode}'. Must be either 'train' or 'eval'.")
         self.mode = mode
 
+    def _build_sample_weights(self) -> None:
+        """
+        Pre-compute per-row sampling probabilities using capped inverse-sqrt class frequency.
+
+        Weight per class c:
+            raw_w(c) = 1 / sqrt(N_c)    (boosts underrepresented classes)
+            cap(c)   = 5 × w(majority)  (prevents extreme over-weighting of tiny classes)
+            w(c)     = min(raw_w(c), cap(c))
+
+        Row weight = w(class_of_row) / sum(all row weights).
+        This ensures minority classes get meaningfully more training exposure
+        while the majority class never completely disappears from the rollout.
+        """
+        labels = self.df["action_label"].values.astype(int)
+        class_counts = np.bincount(labels, minlength=20).astype(float)
+
+        # Avoid divide-by-zero for classes with 0 samples
+        class_counts_safe = np.where(class_counts > 0, class_counts, np.inf)
+
+        raw_weights = 1.0 / np.sqrt(class_counts_safe)
+
+        # Cap: no class gets more than 5× the weight of the most common class
+        majority_weight = raw_weights[class_counts > 0].min()  # smallest raw weight = most common class
+        cap = 5.0 * majority_weight
+        capped_weights = np.minimum(raw_weights, cap)
+
+        # Assign per-row probabilities
+        row_weights = capped_weights[labels]
+        self._sample_weights = row_weights / row_weights.sum()
+
     # ── Step 2: Incident Selection ───────────────────────────
     def _get_next_sample(self) -> pd.Series:
         """
         Select and return the next incident row from the dataset.
 
         In 'train' mode:
-            Randomly samples a row from self.df (prevents memorization).
+            - 'uniform': Randomly samples a row uniformly (prevents memorization).
+            - 'balanced': Samples using capped inverse-sqrt class frequency weights
+              to give minority classes more training exposure.
 
         In 'eval' mode:
             Selects the row sequentially at self.current_index (ensures reproducibility).
 
         Returns:
             pd.Series: The complete row of the selected incident.
-                       Does not modify current_sample or current_embedding.
         """
         if self.mode == "train":
-            # Uniform random selection for training
-            return self.df.sample(1).iloc[0]
+            if self.sampling == "balanced" and self._sample_weights is not None:
+                idx = np.random.choice(len(self.df), p=self._sample_weights)
+                return self.df.iloc[idx]
+            else:
+                # Default uniform random selection
+                return self.df.sample(1).iloc[0]
         else:
             # Sequential selection for evaluation (wraps around if needed)
             idx = self.current_index % len(self.df)
