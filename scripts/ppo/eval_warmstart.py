@@ -2,15 +2,11 @@
 """
 Experiment 4A — Subtask 2.3: Warm-Start Actor Diagnostic Evaluation
 
-Evaluates the distilled Actor (models/ppo/warmstart_actor.pt) on the full
-1,539-sample validation set. Produces all metrics needed before deciding
-whether to proceed to 4A-PPO or refine the distillation.
-
-No changes to the encoder, dataset, architecture, reward, or PPO config.
-This is a read-only diagnostic.
+Evaluates any Actor checkpoint on the full 1,539-sample validation set.
 
 Usage (from project root):
     python scripts/ppo/eval_warmstart.py
+    python scripts/ppo/eval_warmstart.py --checkpoint models/ppo/best_ppo_policy.pt
 """
 
 import os
@@ -18,6 +14,8 @@ import sys
 import numpy as np
 import pandas as pd
 import torch
+
+import argparse
 
 from sklearn.metrics import (
     accuracy_score,
@@ -39,7 +37,6 @@ from src.secbert.dataset import SecBERTDataset
 
 # ── Config ────────────────────────────────────────────────────────────
 SECBERT_PATH      = "models/secbert_finetuned"
-WARMSTART_PATH    = "models/ppo/warmstart_actor.pt"
 VAL_DATA_PATH     = "data/processed/val.csv"
 ACTION_SPACE_PATH = "data/action_space.csv"
 BATCH_SIZE        = 64
@@ -47,12 +44,18 @@ MAX_LENGTH        = 512
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Evaluate an Actor checkpoint on validation set")
+    parser.add_argument("--checkpoint", type=str, default="models/ppo/warmstart_actor.pt",
+                        help="Path to Actor checkpoint (.pt file)")
+    args = parser.parse_args()
+
+    ckpt_path = args.checkpoint
     device = torch.device("cpu")
 
     print("=" * 65)
-    print("Subtask 2.3 — Warm-Start Actor Diagnostic Evaluation")
+    print("Actor Diagnostic Evaluation on Validation Set")
     print("=" * 65)
-    print(f"  Checkpoint : {WARMSTART_PATH}")
+    print(f"  Checkpoint : {ckpt_path}")
     print(f"  Val split  : {VAL_DATA_PATH}")
     print(f"  Device     : {device}")
     print()
@@ -86,17 +89,17 @@ def main():
     val_loader   = DataLoader(val_dataset, batch_size=BATCH_SIZE,
                               shuffle=False, collate_fn=collator)
 
-    # ── 5. Load warm-started Actor ────────────────────────────────────
-    print("[2/3] Loading warm-started Actor...")
-    checkpoint = torch.load(WARMSTART_PATH, map_location=device, weights_only=False)
+    # ── 5. Load Actor checkpoint ──────────────────────────────────────
+    print("[2/3] Loading Actor checkpoint...")
+    checkpoint = torch.load(ckpt_path, map_location=device, weights_only=False)
     actor = ActorNetwork(state_dim=768, action_dim=20).to(device)
     actor.load_state_dict(checkpoint["actor_state_dict"])
     actor.eval()
 
-    stored_acc = checkpoint.get("warmstart_val_acc", "N/A")
-    stored_f1  = checkpoint.get("warmstart_val_macro_f1", "N/A")
-    print(f"  Stored val acc (during distillation) : {stored_acc:.4%}" if isinstance(stored_acc, float) else f"  Stored val acc : {stored_acc}")
-    print(f"  Stored val F1  (during distillation) : {stored_f1:.4f}"  if isinstance(stored_f1,  float) else f"  Stored val F1  : {stored_f1}")
+    # Print any stored metadata
+    for key in ["warmstart_val_acc", "warmstart_val_macro_f1", "best_eval_macro_f1", "method"]:
+        if key in checkpoint:
+            print(f"  {key}: {checkpoint[key]}")
     print()
 
     # ── 6. Run inference ──────────────────────────────────────────────
