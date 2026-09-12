@@ -54,6 +54,8 @@ class PPOTrainer:
         eval_interval: int = 20,
         eval_steps: int = 50,
         save_dir: Optional[str] = "models/ppo",
+        ref_actor=None,
+        kl_beta: float = 0.0,
     ):
         # 1. Core RL components
         self.env = env
@@ -68,6 +70,10 @@ class PPOTrainer:
         self.eval_interval = eval_interval
         self.eval_steps = eval_steps
         self.save_dir = save_dir
+
+        # KL constraint: frozen reference policy for policy preservation
+        self.ref_actor = ref_actor
+        self.kl_beta = kl_beta
 
         # 3. State and metric tracking
         self.history: List[Dict[str, float]] = []
@@ -280,6 +286,7 @@ class PPOTrainer:
             print(f"  Mini-Batch Size: {self.agent.batch_size}")
             print(f"  Epochs / Update: {self.agent.k_epochs}")
             print(f"  Device: {self.agent.device}")
+            print(f"  KL Beta (ref policy): {self.kl_beta}")
             print("=" * 70)
 
         # Reset environment before training starts
@@ -291,8 +298,12 @@ class PPOTrainer:
             # 1. Collect rollout
             rollout_metrics = self.collect_rollout()
 
-            # 2. Update agent
-            update_metrics = self.agent.update(self.memory)
+            # 2. Update agent (pass reference policy for KL constraint if configured)
+            update_metrics = self.agent.update(
+                self.memory,
+                ref_actor=self.ref_actor,
+                kl_beta=self.kl_beta,
+            )
 
             # 3. Combine iteration metrics
             iter_metrics = {

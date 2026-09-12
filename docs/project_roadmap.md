@@ -51,5 +51,26 @@ This document tracks the overall progress of the Autonomous SOC Agent project ac
 - [x] **Step 11: Evaluation Pipeline & Baselines** (`evaluate_ppo.py`)
   - Comprehensive evaluation against SecBERT supervised baseline.
   - Research analysis documented proving RL convergence on contextual bandit.
-- [ ] **Phase 3: Connect to the Ubuntu SOC Lab**
-  - Real-world integration with Wazuh SIEM, osquery, and Suricata for live telemetry and response automation.
+- [x] **Step 12: Reward Engineering (Exp 0–3)**
+  - Naive +1/−1, class-aware, response-aware, and bounded hybrid rewards.
+  - Conclusion: reward shaping alone insufficient. Pivot to structural interventions.
+
+## Phase 2B: PPO Recovery — Structural Interventions (In Progress)
+- [ ] **Step 13: Behavioral Cloning Warm-Start** (`scripts/ppo/warmstart_actor.py`)
+  - [ ] Embedding alignment verification (SecBERT encoder vs classifier CLS extraction)
+  - [ ] Knowledge distillation: SecBERT classifier → PPO Actor MLP
+  - [ ] Independent warm-start evaluation on 1,539 validation samples
+- [ ] **Step 14: Warm-Start PPO Training**
+  - [ ] PPO fine-tuning from warm-started Actor with simple +1/−1 reward
+  - [ ] Evaluate whether PPO preserves or degrades warm-start quality
+- [ ] **Step 15: Balanced Experience Sampling** (conditional — only if Step 14 degrades)
+  - [ ] Design and verify controlled class-balanced sampling strategy
+  - [ ] Retrain with warm-start + balanced sampling
+- [ ] **Step 16: Entropy Scheduling** (conditional — only if Step 15 insufficient)
+  - [ ] Entropy coefficient schedule (c2: 0.05 → 0.005)
+  - [ ] Evaluate impact on minority-class exploration
+
+## Phase 3: Integration (Pending)
+- [ ] Configure Wazuh, Caldera, and OSQuery simulation setups.
+- [ ] Connect the agent to the Ubuntu SOC Lab for live telemetry and response automation.
+- [ ] Run integrated evaluation and generate performance reports.

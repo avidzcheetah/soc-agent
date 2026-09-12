@@ -215,19 +215,16 @@ class PPOAgent:
 
         return advantages_tensor, returns_tensor
 
-    def update(self, memory: PPOMemory) -> Dict[str, float]:
+    def update(self, memory: PPOMemory, ref_actor=None, kl_beta: float = 0.0) -> Dict[str, float]:
         """
         Execute one PPO optimization cycle over the collected trajectory in memory.
 
-        Step 7.1 (Preparation Stage):
-            1. Compute advantages and returns via GAE.
-            2. Convert memory lists (states, actions, log_probs) to PyTorch tensors on device.
-            3. Normalize advantages for numerical stability across batches.
-            4. Execute k_epochs optimization loop (loss computation to be implemented in 7.2-7.5).
-            5. Clear memory after update.
-
         Args:
             memory: PPOMemory containing collected trajectory rollouts.
+            ref_actor: Optional reference Actor (frozen warm-start). When provided, a
+                       KL(ref || current) penalty is added to the actor loss to prevent
+                       catastrophic forgetting of the supervised warm-start knowledge.
+            kl_beta: Coefficient for the KL penalty term. 0.0 disables it.
 
         Returns:
             Dict[str, float]: Training metrics/losses dictionary.
@@ -256,6 +253,7 @@ class PPOAgent:
         total_policy_loss = 0.0
         total_value_loss = 0.0
         total_entropy = 0.0
+        total_kl_penalty = 0.0
         num_updates = 0
 
         for epoch in range(self.k_epochs):
@@ -297,8 +295,23 @@ class PPOAgent:
                 # G. Negate because PyTorch minimizes, but we want to maximize expected reward
                 policy_loss = -torch.min(surr1, surr2).mean()
 
-                # Step 7.5: Actor Optimization (including entropy bonus for exploration)
+                # Step 7.5: Actor Optimization (PPO loss - entropy bonus + optional KL penalty)
                 actor_loss = policy_loss - self.c2_entropy * dist_entropy
+
+                # KL constraint: penalize drift from the reference (warm-start) policy.
+                # KL(ref || current) encourages the current policy to stay close to the
+                # supervised warm-start, preventing catastrophic forgetting.
+                if ref_actor is not None and kl_beta > 0.0:
+                    with torch.no_grad():
+                        ref_logits = ref_actor(b_states)
+                    ref_probs = F.softmax(ref_logits, dim=-1)
+                    current_log_probs_all = F.log_softmax(new_logits, dim=-1)
+                    kl_penalty = F.kl_div(
+                        current_log_probs_all, ref_probs,
+                        reduction="batchmean", log_target=False
+                    )
+                    actor_loss = actor_loss + kl_beta * kl_penalty
+                    total_kl_penalty += kl_penalty.item()
 
                 self.actor_optimizer.zero_grad()
                 actor_loss.backward()
@@ -337,6 +350,7 @@ class PPOAgent:
             "policy_loss": total_policy_loss / num_updates if num_updates > 0 else 0.0,
             "value_loss": total_value_loss / num_updates if num_updates > 0 else 0.0,
             "entropy": total_entropy / num_updates if num_updates > 0 else 0.0,
+            "kl_penalty": total_kl_penalty / num_updates if num_updates > 0 else 0.0,
         }
 
 

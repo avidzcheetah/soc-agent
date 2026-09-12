@@ -81,7 +81,7 @@ class SOCEnvironment:
                        Does not modify current_sample or current_embedding.
         """
         if self.mode == "train":
-            # Random selection for training
+            # Uniform random selection for training
             return self.df.sample(1).iloc[0]
         else:
             # Sequential selection for evaluation (wraps around if needed)
@@ -219,19 +219,11 @@ class SOCEnvironment:
         # 1. Look at ground truth
         ground_truth = int(self.current_sample["action_label"])
 
-        # 2. Compare and calculate response-aware reward
+        # 2. Simple binary reward: +1 correct, -1 incorrect
+        #    Reverted from hybrid reward (Exp 3) to isolate the effect of
+        #    warm-start initialization and balanced sampling interventions.
         is_correct = (int(action) == ground_truth)
-        
-        if is_correct:
-            reward = 1.0
-        else:
-            pred_phase = self.action_to_phase.get(int(action), "Unknown")
-            gt_phase = self.action_to_phase.get(ground_truth, "Unknown")
-            
-            if pred_phase == gt_phase or pred_phase == "All Phases" or gt_phase == "All Phases":
-                reward = -0.5
-            else:
-                reward = -1.0
+        reward = 1.0 if is_correct else -1.0
 
         # 3. Advance evaluation pointer if in eval mode
         if self.mode == "eval":

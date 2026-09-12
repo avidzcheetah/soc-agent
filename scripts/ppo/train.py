@@ -49,6 +49,10 @@ def parse_args():
     parser.add_argument("--log_interval", type=int, default=5, help="Logging interval (in iterations)")
     parser.add_argument("--save_dir", type=str, default="models/ppo", help="Directory to save checkpoints")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
+    parser.add_argument("--warmstart_path", type=str, default=None,
+                        help="Path to warm-started Actor weights (from warmstart_actor.py)")
+    parser.add_argument("--kl_beta", type=float, default=0.0,
+                        help="KL penalty coefficient against warm-start reference policy (0.0 = disabled)")
 
     return parser.parse_args()
 
@@ -104,6 +108,30 @@ def main():
         device=device,
     )
 
+    # 4.5 Load warm-started Actor weights if provided (Experiment 4A)
+    ref_actor = None
+    if args.warmstart_path is not None:
+        print(f"[*] Loading warm-started Actor from {args.warmstart_path}...")
+        warmstart_ckpt = torch.load(args.warmstart_path, map_location=device, weights_only=False)
+        agent.actor.load_state_dict(warmstart_ckpt["actor_state_dict"])
+        ws_acc = warmstart_ckpt.get("warmstart_val_acc", "N/A")
+        ws_f1  = warmstart_ckpt.get("warmstart_val_macro_f1", "N/A")
+        print(f"    Warm-start Val Acc    : {ws_acc}")
+        print(f"    Warm-start Val Macro F1 (stored): {ws_f1}")
+        print(f"    Authoritative Macro F1 (eval_warmstart.py): 0.7438")
+        print(f"    Method: {warmstart_ckpt.get('method', 'unknown')}")
+
+        # Build a frozen reference Actor for the KL constraint (Exp 4A-1)
+        # This prevents PPO from drifting too far from the supervised warm-start.
+        if args.kl_beta > 0.0:
+            from src.ppo.networks import ActorNetwork
+            ref_actor = ActorNetwork(state_dim=768, action_dim=20).to(device)
+            ref_actor.load_state_dict(warmstart_ckpt["actor_state_dict"])
+            ref_actor.eval()
+            for p in ref_actor.parameters():
+                p.requires_grad = False
+            print(f"    KL reference policy loaded (beta={args.kl_beta})")
+
     # 5. Initialize Trainer
     trainer = PPOTrainer(
         env=train_env,
@@ -115,6 +143,8 @@ def main():
         eval_interval=args.eval_interval,
         eval_steps=args.eval_steps,
         save_dir=args.save_dir,
+        ref_actor=ref_actor,
+        kl_beta=args.kl_beta,
     )
 
     # 6. Execute Training

@@ -219,15 +219,15 @@ class SecBERTStateEncoder:
         with torch.no_grad():
             outputs = self.model(**inputs)
 
-        # outputs.last_hidden_state shape: [1, seq_len, 768]
-        # We take the [CLS] token (position 0) — this is the
-        # sentence-level representation that SecBERT learned
-        # during Phase 1 training.
+        # BertForSequenceClassification uses the 'pooler_output'
+        # (CLS token passed through a dense layer + Tanh)
+        # as the input to its classifier head. We must use the exact
+        # same representation so that PPO state embeddings align.
         #
-        #   [CLS] embedding = outputs.last_hidden_state[0, 0, :]
+        #   [CLS] embedding = outputs.pooler_output[0, :]
         #
         # Result: a flat tensor of 768 numbers.
-        embedding = outputs.last_hidden_state[0, 0, :]
+        embedding = outputs.pooler_output[0, :]
 
         # Optional L2 normalization — maps vector onto unit sphere
         # so all embeddings have magnitude 1.0. Not forced.
@@ -267,10 +267,10 @@ class SecBERTStateEncoder:
         with torch.no_grad():
             outputs = self.model(**inputs)
 
-        # Take [CLS] token (position 0) for every sample in the batch
-        # outputs.last_hidden_state shape: [N, seq_len, 768]
+        # Use pooler_output (CLS token passed through dense layer + Tanh)
+        # to match the BertForSequenceClassification classifier head input.
         # Result: [N, 768]
-        embeddings = outputs.last_hidden_state[:, 0, :]
+        embeddings = outputs.pooler_output
 
         # Optional L2 normalization
         if self.normalize:

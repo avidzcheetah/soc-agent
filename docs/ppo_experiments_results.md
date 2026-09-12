@@ -93,6 +93,53 @@ Across all 95 validation misclassifications made by PPO:
 **Key Takeaway for Experiment 3 (Class-Aware + Response-Aware Hybrid):**
 The phase penalty in Experiment 2 was so effective at constraining the agent to the correct phase that it created **intra-phase majority attractors**: rare Containment actions (`block_dest_ip`, `block_port`) collapsed into the massive Containment anchors (`kill_process`, `isolate_host`), while rare Detection actions (`enable_deep_logging`) escaped to the universal fallback `escalate_to_human`. 
 
-Experiment 3 must combine **class-frequency inverse weighting** with **phase penalties** specifically to push the gradient out of these intra-phase attractor traps.
+---
 
+## Experiment 3: Bounded Hybrid Reward (Class-Aware + Response-Aware)
 
+**Hypothesis:** Combining bounded class-frequency rewards ($W_c \in [1.0, 2.0]$) with phase-aware penalties and a strict false-escalation penalty ($-1.0$) will break intra-phase attractor traps.
+
+**Formulation:**
+- Correct action: $+W_c$ where $W_c = 1 + \frac{\ln(N_{\max}/N_c)}{\ln(N_{\max}/N_{\min})}$
+- Wrong action, same CISA phase: $-0.5$
+- Wrong action, different phase: $-1.0$
+- False escalation (`pred = escalate_to_human` when `gt ≠ escalate_to_human`): $-1.0$
+
+### Overall Metrics
+
+| Metric | SecBERT (Supervised) | Exp 0 (Original) | Exp 1 (Class-Aware) | Exp 2 (Response-Aware) | **Exp 3 (Hybrid)** |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| **Accuracy** | 94.48% | 93.44% | 93.83% | 93.83% | **93.11%** |
+| **Macro F1** | **0.7375** | 0.6114 | 0.6281 | 0.6219 | **0.6312** |
+| **Weighted F1** | 0.9445 | 0.9300 | 0.9342 | 0.9332 | **0.9232** |
+| **MCC** | 0.9347 | 0.9224 | 0.9268 | 0.9269 | **0.9183** |
+
+### Training Dynamics — Entropy Collapse Evidence
+
+```
+Iter   1:  Entropy = 2.938  (uniform)
+Iter   5:  Entropy = 0.541  (already concentrated)
+Iter  10:  Entropy = 0.114  (nearly deterministic)
+Iter  40:  Entropy = 0.017  (collapsed)
+Iter 100:  Entropy = 0.003  (dead exploration)
+```
+
+Best validation Macro F1 during training: **0.5677** at iteration 70 (non-monotonic; policy drifted after).
+
+### Critical Per-Class Observations
+
+| Action | SecBERT F1 | Exp 3 PPO F1 | Change |
+| :--- | ---: | ---: | ---: |
+| `remove_persistence` | **0.8511** | **0.0000** | −0.8511 (complete collapse) |
+| `escalate_to_human` | **1.0000** | **0.0000** | −1.0000 (complete collapse) |
+| `enable_deep_logging` | 0.8000 | 0.8000 | ±0.0000 |
+| `block_dest_ip` | 0.6667 | 0.6667 | ±0.0000 |
+
+### Conclusion: Reward Engineering Exhausted
+
+After 4 reward experiments (Exp 0–3), the evidence is conclusive:
+1. **No reward formulation closed the gap** with the supervised SecBERT baseline (Macro F1 0.7375).
+2. **The hybrid reward was the worst** for overall metrics (Accuracy, Weighted F1, MCC) despite marginal Macro F1 improvement.
+3. **The problem is not the reward function.** Root cause analysis identifies: (a) cold-start disadvantage — PPO Actor learns from scratch with sparse scalar rewards vs. dense cross-entropy gradients, (b) experience starvation — rare classes appear ≤1× per 256-sample rollout, (c) entropy collapse — policy becomes deterministic by iteration 10.
+
+**Strategic pivot:** Development moves to Phase 2B — structural interventions (behavioral cloning warm-start, balanced sampling, entropy management) rather than further reward modifications.
