@@ -197,9 +197,12 @@ class PPOTrainer:
         eval_reward = total_reward / steps if steps > 0 else 0.0
         
         # Scikit-learn metrics for class-imbalanced evaluation
-        action_classes = list(range(self.agent.action_dim)) if hasattr(self.agent, "action_dim") else list(range(20))
-        macro_f1 = float(f1_score(y_true, y_pred, average="macro", zero_division=0, labels=action_classes)) if steps > 0 else 0.0
-        weighted_f1 = float(f1_score(y_true, y_pred, average="weighted", zero_division=0, labels=action_classes)) if steps > 0 else 0.0
+        # NOTE: Do NOT pass labels=list(range(20)) here. Classes with 0 support
+        # in the validation set (e.g., create_ioc_alert, sandbox_redirect) would
+        # contribute F1=0 and artificially deflate the macro average. Let sklearn
+        # compute F1 only over classes present in y_true (the standard approach).
+        macro_f1 = float(f1_score(y_true, y_pred, average="macro", zero_division=0)) if steps > 0 else 0.0
+        weighted_f1 = float(f1_score(y_true, y_pred, average="weighted", zero_division=0)) if steps > 0 else 0.0
         mcc = float(matthews_corrcoef(y_true, y_pred)) if steps > 0 else 0.0
 
         # Retain latest evaluation predictions for confusion matrix / per-class reporting

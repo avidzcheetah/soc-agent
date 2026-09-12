@@ -245,11 +245,11 @@ def main():
             val_preds = torch.argmax(val_logits, dim=-1).cpu()
             val_acc = (val_preds == val_labels_tensor).float().mean().item()
 
-            # Compute Macro F1 on validation
+            # Compute Macro F1 on validation (only classes present in data)
             from sklearn.metrics import f1_score
             val_macro_f1 = f1_score(
                 val_labels_tensor.numpy(), val_preds.numpy(),
-                average="macro", zero_division=0, labels=list(range(20))
+                average="macro", zero_division=0
             )
 
         if epoch % 5 == 0 or epoch == 1:
