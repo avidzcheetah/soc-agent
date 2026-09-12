@@ -4,142 +4,92 @@ This document serves as the official tracking record for all PPO improvement exp
 
 The test set remains completely frozen and untouched during this phase.
 
-## Experiment Baselines
+---
 
-| Experiment | Description | Validation Macro F1 |
-| :--- | :--- | :--- |
-| **Baseline (SecBERT)** | Pure classifier baseline (No PPO). | **0.7375** |
-| **Exp 0 (Original PPO)** | Original PPO with naive `+1/-1` reward structure. | **0.6114** |
+## Executive Summary & Metric Leaderboard
+
+| Model / Experiment | Sampling | Intervention | Accuracy | Macro F1 | Weighted F1 | MCC | Status |
+| :--- | :--- | :--- | ---: | ---: | ---: | ---: | :--- |
+| **SecBERT Baseline** | N/A | Fine-tuned Transformer | 94.4835% | 0.7375 | 0.9445 | 0.9347 | Baseline |
+| **Warm-Start Actor** | N/A | Knowledge Distillation (BC) | **94.7368%** | 0.7438 | **0.9467** | **0.9377** | Initializer |
+| **Exp 0 (Naive PPO)** | Uniform | $+1/-1$ reward, scratch | 93.4373% | 0.6114 | 0.9300 | 0.9224 | Baseline PPO |
+| **Exp 1 (Class-Aware)** | Uniform | Log frequency reward | 93.8272% | 0.6281 | 0.9342 | 0.9268 | Reward Shaping |
+| **Exp 2 (Response-Aware)** | Uniform | CISA Phase penalty | 93.8272% | 0.6219 | 0.9332 | 0.9269 | Reward Shaping |
+| **Exp 3 (Hybrid Reward)** | Uniform | Class + Phase penalty | 93.1124% | 0.6312 | 0.9232 | 0.9183 | Reward Shaping |
+| **Exp 4A (Pure PPO)** | Uniform | Warm-start, $+1/-1$ reward | 93.5673% | 0.7616 | 0.9342 | 0.9238 | Macro-F1 peak |
+| **Exp 4A-1 (KL-PPO)** | Uniform | KL penalty ($\beta=0.5$) | 93.3073% | 0.7027 | 0.9318 | 0.9205 | Regularization |
+| **Exp 4A-2 (BC-PPO)** | Uniform | Supervised BC loss ($\lambda=0.05$) | 94.2820% | 0.7350 | 0.9422 | 0.9323 | Preservation |
+| **Exp 4B (Balanced PPO)** | Balanced | Capped inverse-sqrt ($lr=3\text{e-}4$) | 94.6069% | 0.7423 | 0.9452 | 0.9361 | Balanced baseline |
+| **Exp 4C-0 (Conservative Balanced)** | Balanced | Capped sampling + $lr=1\text{e-}4$ | **94.4120%** | **0.7928** | **0.9433** | **0.9338** | 🏆 **Best PPO Model** |
 
 ---
 
-## Experiment 1: Class-Aware Logarithmic Reward
+## Phase 2A: Reward Engineering Experiments (Exp 0 – Exp 3)
 
-**Hypothesis:** Applying an inverse-frequency logarithmic reward to minority classes will encourage the agent to explore and successfully learn them, improving the Macro F1 score without overcompensating gradients.
-**Formulation:** `W_c = 1.0 + ln(N_max / N_c)`
+### Summary of Findings
+Across 4 distinct reward formulations (naive scalar, logarithmic class-aware, semantic response-aware phase penalty, and bounded hybrid), reward engineering alone proved **insufficient** to close the performance gap with the supervised SecBERT baseline (Macro F1 0.7375).
 
-### Overall Metrics
-| Metric | Exp 0 (Original PPO) | Exp 1 (Class-Aware) | Diff |
-| :--- | ---: | ---: | ---: |
-| Accuracy | 93.44% | **93.83%** | +0.39% |
-| Macro F1 | 0.6114 | **0.6281** | +0.0167 |
-| Weighted F1 | 0.9300 | **0.9342** | +0.0042 |
-| MCC | 0.9224 | **0.9268** | +0.0044 |
+* **Exp 0 (Naive PPO):** Suffered severe minority-class collapse (Macro F1 = 0.6114).
+* **Exp 1 (Class-Aware Logarithmic Reward):** Improved Macro F1 to 0.6281 and recovered `enable_deep_logging` (F1 0.80), but `block_dest_ip` collapsed.
+* **Exp 2 (Response-Aware CISA Phase Penalty):** Constrained errors within correct semantic phases (MCC 0.9269), but intra-phase majority attractors (`kill_process`, `isolate_host`) absorbed rare actions.
+* **Exp 3 (Bounded Hybrid Reward):** Proved counterproductive. Entropy collapsed rapidly by iteration 10, causing complete collapse of `remove_persistence` and `escalate_to_human`.
 
-### Notable Class Movements
-- `enable_deep_logging`: 0.0000 $\rightarrow$ **0.8000** (Recovered)
-- `block_dest_ip`: 0.6250 $\rightarrow$ **0.0000** (Collapsed)
-- `escalate_to_human`: 0.0000 $\rightarrow$ **0.0000** (Unchanged)
-
-**Conclusion:** Class-aware logarithmic rewards improved PPO's overall validation performance and recovered some minority-class performance, but the improvement was inconsistent across rare response actions. This indicates that class-frequency weighting alone is insufficient to achieve balanced response-action selection.
+**Key Strategic Insight:** The core limitation of PPO was not reward definition, but structural:
+1. **Cold-Start Disadvantage:** PPO Actor initialized from scratch struggled against dense cross-entropy gradients.
+2. **Experience Starvation:** Rare classes appeared $\le 1\times$ per 256-sample rollout.
+3. **Policy Entropy Collapse:** Deterministic convergence before policy could explore rare decision boundaries.
 
 ---
 
-## Experiment 2: Response-Aware Reward (Semantic Phase Penalty)
+## Phase 2B: Structural Recovery & Initialization Experiments (Exp 4A Series)
 
-**Hypothesis:** Injecting the semantic CISA response framework into the reward landscape prevents the model from taking blind leaps. A phase-compatible mistake is penalized less (-0.5) than a completely inappropriate cross-phase response (-1.0).
-**Formulation:** (Independent of Exp 1)
-- Exact action correct: `+1.0`
-- Wrong action, but correct response phase: `-0.5`
-- Wrong phase: `-1.0`
-- `escalate_to_human` (All Phases): `-0.5` if wrong action but phase-compatible.
+### Warm-Start Knowledge Distillation
+* **Method:** Knowledge distillation of SecBERT logits into the PPO Actor MLP architecture via KL-divergence loss.
+* **Result:** Reached **94.7368% Accuracy**, **0.7438 Macro F1**, **0.9467 Weighted F1**, and **0.9377 MCC**.
+* **Verdict:** Successfully reproduced and slightly exceeded the supervised SecBERT baseline, providing a high-quality warm-start initialization.
 
-### Comparative Validation Summary
+### Exp 4A: Warm-Start PPO
+* **Configuration:** PPO initialized from Warm-Start Actor, uniform sampling, simple $+1/-1$ binary reward.
+* **Result:** Achieved Macro F1 **0.7616** at iteration 20 (+0.0241 over SecBERT), but overall Accuracy degraded to 93.57% and MCC to 0.9238.
 
-| Metric | SecBERT (Supervised) | Exp 0 (Original PPO) | Exp 1 (Class-Aware PPO) | **Exp 2 (Response-Aware PPO)** | Diff vs Exp 0 | Diff vs Exp 1 |
-| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
-| **Accuracy** | 94.48% | 93.44% | 93.83% | **93.83%** | +0.39% | +0.00% |
-| **Macro F1** | **0.7375** | 0.6114 | **0.6281** | **0.6219** | +0.0105 | -0.0062 |
-| **Weighted F1** | 0.9445 | 0.9300 | 0.9342 | **0.9332** | +0.0032 | -0.0010 |
-| **MCC** | 0.9347 | 0.9224 | 0.9268 | **0.9269** | +0.0045 | +0.0001 |
+### Exp 4A-1: KL-Constrained PPO ($\beta=0.5$)
+* **Hypothesis:** Penalizing KL divergence relative to the frozen reference warm-start policy will prevent policy drift.
+* **Result:** Macro F1 dropped to **0.7027**. Over-constrained policy exploration without improving balance.
 
-### Notable Class Movements & Per-Class Analysis
-- `dns_sinkhole`: 0.8889 $\rightarrow$ **0.9231** (+0.0342 vs SecBERT)
-- `reset_credentials`: 0.8736 $\rightarrow$ **0.8876** (+0.0140 vs SecBERT)
-- `disable_account`: 0.9448 $\rightarrow$ **0.9459** (+0.0011 vs SecBERT)
-- `escalate_to_human`: 0.0000 $\rightarrow$ **0.3636** (Successfully recovered from 0 in Exp 0 & Exp 1)
-- `enable_deep_logging`: 0.0000 (Regressed from 0.8000 in Exp 1; collapsed back to 0.0000)
-- `block_dest_ip`: 0.0000 (Remained collapsed)
-
-### Methodological Insights & Next Steps
-1. **Response-Aware Value:** The phase penalty prevents catastrophic cross-phase penalties and successfully salvaged `escalate_to_human` (F1 = 0.3636), but it did not provide global balance across severely under-represented classes (`enable_deep_logging`, `block_dest_ip`).
-2. **Current Ranking:** SecBERT (0.7375) > Class-Aware PPO (0.6281) > Response-Aware PPO (0.6219) > Original PPO (0.6114).
-3. **Diagnostic Prerequisite for Experiment 3:** Rather than blindly combining rewards into a hybrid, we perform a diagnostic prediction-distribution and confusion analysis on validation to pinpoint exactly which dominant classes absorb the predictions of `enable_deep_logging`, `block_dest_ip`, and other minority actions.
+### Exp 4A-2: Supervised BC Preservation Loss ($\lambda_{BC}=0.05$)
+* **Hypothesis:** Adding a cross-entropy loss against ground-truth labels during PPO updates will preserve baseline performance.
+* **Result:** Accuracy (94.28%), Weighted F1 (0.9422), and MCC (0.9323) were successfully preserved, but Macro F1 was suppressed to **0.7350** (below SecBERT).
 
 ---
 
-## Diagnostic Analysis: Policy Collapse & Misclassification Destinations
+## Phase 2C: Experience Sampling & Learning Rate Optimization (Exp 4B & Exp 4C)
 
-To uncover why minority-class F1 drops under PPO, an independent diagnostic inspection of the 1,539 validation predictions was conducted on `models/ppo/best_ppo_policy.pt`.
+### Exp 4B: Capped Class-Balanced PPO ($lr=3\text{e-}4$, $\text{Cap}=5\times$)
+* **Hypothesis:** Replacing uniform random sampling with capped inverse-sqrt class frequency sampling ($P(c) \propto \min(N_c^{-0.5}, 5 \cdot w_{\text{maj}})$) will give rare response actions necessary exposure during rollouts.
+* **Result:** Evaluated on validation set: **Accuracy 94.61%**, **Macro F1 0.7423**, **Weighted F1 0.9452**, **MCC 0.9361**.
+* **Verdict:** First PPO variant to beat SecBERT across all 4 metrics simultaneously. However, training peaked early at iteration 5 and oscillated due to high actor learning rate ($3\text{e-}4$).
 
-### 1. Where do the Missing Minority Actions Go?
+### Exp 4C-0: Conservative Balanced PPO ($lr=1\text{e-}4$, Balanced Sampling, 150 Iterations)
+* **Hypothesis:** Reducing the actor learning rate to $1\text{e-}4$ under capped balanced sampling will allow smooth, non-oscillatory convergence on minority-class decision boundaries without overshooting.
+* **Checkpoint Evaluation (Iter 125):**
+  * **Val Accuracy:** **94.4120%**
+  * **Val Macro F1:** **0.7928** (+0.0553 vs SecBERT baseline)
+  * **Val Weighted F1:** **0.9433**
+  * **Val MCC:** **0.9338**
+* **Per-Class Breakdown (18 Active Classes):**
+  * `patch_vulnerability`: **0.9927** (support=411)
+  * `monitor`: **0.9919** (support=123)
+  * `isolate_host`: **0.9626** (support=338)
+  * `disable_account`: **0.9562** (support=150)
+  * `kill_process`: **0.8858** (support=172)
+  * `reset_credentials`: **0.8721** (support=82)
+  * `quarantine_file`: **0.8649** (support=57)
+  * `enable_deep_logging`: **0.8571** (support=8)
+  * `quarantine_email`: **0.8454** (support=51)
+  * `restore_defense_config`: **0.7778** (support=10)
+  * `remove_persistence`: **0.7500** (support=21)
+  * `snapshot_forensics`: **1.0000** (support=1) — *Fully recovered*
+  * `block_port`: **0.0000** (support=1)
+  * `restore_registry`: **0.0000** (support=1)
 
-| Ground Truth Action | GT Count | SecBERT Correct | PPO Correct | Primary PPO Misclassification Destinations | Semantic Mechanism |
-| :--- | :---: | :---: | :---: | :--- | :--- |
-| **`enable_deep_logging`** | 8 | 6 (75%) | **0 (0%)** | `escalate_to_human` (6 / 8 = 75%)<br>`monitor` (2 / 8 = 25%) | `escalate_to_human` spans All Phases (-0.5 penalty fallback); `monitor` is Detection phase. |
-| **`block_dest_ip`** | 10 | 6 (60%) | **0 (0%)** | `kill_process` (4 / 10 = 40%)<br>`isolate_host` (4 / 10 = 40%)<br>`disable_account` (1/10)<br>`quarantine_email` (1/10) | **100% of errors stayed within Containment phase.** The agent collapsed rare containment into dominant containment hubs. |
-| **`escalate_to_human`** | 2 | 2 (100%) | **2 (100%)** | *100% Recall*, but **Precision = 22.2%** (PPO predicted it 9 times instead of 2). | Because `escalate_to_human` carries a mild penalty across all phases, the policy over-samples it as a hedge. |
-| **`block_port`** | 1 | 0 (0%) | 0 (0%) | `kill_process` (1 / 1 = 100%) | Collapsed into dominant Containment hub. |
-| **`restore_registry`** | 1 | 0 (0%) | 0 (0%) | `remove_persistence` (1 / 1 = 100%) | Eradication phase neighbor. |
-
-### 2. Dominant Attractor Classes (Where do all 95 PPO Errors go?)
-
-Across all 95 validation misclassifications made by PPO:
-1. **`kill_process`**: Absorbed **29.5%** of all errors (28 / 95).
-2. **`isolate_host`**: Absorbed **15.8%** of all errors (15 / 95).
-3. **`reset_credentials`**: Absorbed **12.6%** of all errors (12 / 95).
-4. **`escalate_to_human`**: Absorbed **7.4%** of all errors (7 / 95 false positives).
-
-**Key Takeaway for Experiment 3 (Class-Aware + Response-Aware Hybrid):**
-The phase penalty in Experiment 2 was so effective at constraining the agent to the correct phase that it created **intra-phase majority attractors**: rare Containment actions (`block_dest_ip`, `block_port`) collapsed into the massive Containment anchors (`kill_process`, `isolate_host`), while rare Detection actions (`enable_deep_logging`) escaped to the universal fallback `escalate_to_human`. 
-
----
-
-## Experiment 3: Bounded Hybrid Reward (Class-Aware + Response-Aware)
-
-**Hypothesis:** Combining bounded class-frequency rewards ($W_c \in [1.0, 2.0]$) with phase-aware penalties and a strict false-escalation penalty ($-1.0$) will break intra-phase attractor traps.
-
-**Formulation:**
-- Correct action: $+W_c$ where $W_c = 1 + \frac{\ln(N_{\max}/N_c)}{\ln(N_{\max}/N_{\min})}$
-- Wrong action, same CISA phase: $-0.5$
-- Wrong action, different phase: $-1.0$
-- False escalation (`pred = escalate_to_human` when `gt ≠ escalate_to_human`): $-1.0$
-
-### Overall Metrics
-
-| Metric | SecBERT (Supervised) | Exp 0 (Original) | Exp 1 (Class-Aware) | Exp 2 (Response-Aware) | **Exp 3 (Hybrid)** |
-| :--- | ---: | ---: | ---: | ---: | ---: |
-| **Accuracy** | 94.48% | 93.44% | 93.83% | 93.83% | **93.11%** |
-| **Macro F1** | **0.7375** | 0.6114 | 0.6281 | 0.6219 | **0.6312** |
-| **Weighted F1** | 0.9445 | 0.9300 | 0.9342 | 0.9332 | **0.9232** |
-| **MCC** | 0.9347 | 0.9224 | 0.9268 | 0.9269 | **0.9183** |
-
-### Training Dynamics — Entropy Collapse Evidence
-
-```
-Iter   1:  Entropy = 2.938  (uniform)
-Iter   5:  Entropy = 0.541  (already concentrated)
-Iter  10:  Entropy = 0.114  (nearly deterministic)
-Iter  40:  Entropy = 0.017  (collapsed)
-Iter 100:  Entropy = 0.003  (dead exploration)
-```
-
-Best validation Macro F1 during training: **0.5677** at iteration 70 (non-monotonic; policy drifted after).
-
-### Critical Per-Class Observations
-
-| Action | SecBERT F1 | Exp 3 PPO F1 | Change |
-| :--- | ---: | ---: | ---: |
-| `remove_persistence` | **0.8511** | **0.0000** | −0.8511 (complete collapse) |
-| `escalate_to_human` | **1.0000** | **0.0000** | −1.0000 (complete collapse) |
-| `enable_deep_logging` | 0.8000 | 0.8000 | ±0.0000 |
-| `block_dest_ip` | 0.6667 | 0.6667 | ±0.0000 |
-
-### Conclusion: Reward Engineering Exhausted
-
-After 4 reward experiments (Exp 0–3), the evidence is conclusive:
-1. **No reward formulation closed the gap** with the supervised SecBERT baseline (Macro F1 0.7375).
-2. **The hybrid reward was the worst** for overall metrics (Accuracy, Weighted F1, MCC) despite marginal Macro F1 improvement.
-3. **The problem is not the reward function.** Root cause analysis identifies: (a) cold-start disadvantage — PPO Actor learns from scratch with sparse scalar rewards vs. dense cross-entropy gradients, (b) experience starvation — rare classes appear ≤1× per 256-sample rollout, (c) entropy collapse — policy becomes deterministic by iteration 10.
-
-**Strategic pivot:** Development moves to Phase 2B — structural interventions (behavioral cloning warm-start, balanced sampling, entropy management) rather than further reward modifications.
+**Conclusion:** **Exp 4C-0 represents the current state-of-the-art PPO policy**, breaking the 0.75 Macro F1 threshold and reaching **0.7928 Macro F1** while maintaining robust overall accuracy (94.41%) and MCC (0.9338).
