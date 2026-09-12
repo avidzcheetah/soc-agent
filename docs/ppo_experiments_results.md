@@ -8,19 +8,21 @@ The test set remains completely frozen and untouched during this phase.
 
 ## Executive Summary & Metric Leaderboard
 
-| Model / Experiment | Sampling | Intervention | Accuracy | Macro F1 | Weighted F1 | MCC | Status |
-| :--- | :--- | :--- | ---: | ---: | ---: | ---: | :--- |
-| **SecBERT Baseline** | N/A | Fine-tuned Transformer | 94.4835% | 0.7375 | 0.9445 | 0.9347 | Baseline |
-| **Warm-Start Actor** | N/A | Knowledge Distillation (BC) | **94.7368%** | 0.7438 | **0.9467** | **0.9377** | Initializer |
-| **Exp 0 (Naive PPO)** | Uniform | $+1/-1$ reward, scratch | 93.4373% | 0.6114 | 0.9300 | 0.9224 | Baseline PPO |
-| **Exp 1 (Class-Aware)** | Uniform | Log frequency reward | 93.8272% | 0.6281 | 0.9342 | 0.9268 | Reward Shaping |
-| **Exp 2 (Response-Aware)** | Uniform | CISA Phase penalty | 93.8272% | 0.6219 | 0.9332 | 0.9269 | Reward Shaping |
-| **Exp 3 (Hybrid Reward)** | Uniform | Class + Phase penalty | 93.1124% | 0.6312 | 0.9232 | 0.9183 | Reward Shaping |
-| **Exp 4A (Pure PPO)** | Uniform | Warm-start, $+1/-1$ reward | 93.5673% | 0.7616 | 0.9342 | 0.9238 | Macro-F1 peak |
-| **Exp 4A-1 (KL-PPO)** | Uniform | KL penalty ($\beta=0.5$) | 93.3073% | 0.7027 | 0.9318 | 0.9205 | Regularization |
-| **Exp 4A-2 (BC-PPO)** | Uniform | Supervised BC loss ($\lambda=0.05$) | 94.2820% | 0.7350 | 0.9422 | 0.9323 | Preservation |
-| **Exp 4B (Balanced PPO)** | Balanced | Capped inverse-sqrt ($lr=3\text{e-}4$) | 94.6069% | 0.7423 | 0.9452 | 0.9361 | Balanced baseline |
-| **Exp 4C-0 (Conservative Balanced)** | Balanced | Capped sampling + $lr=1\text{e-}4$ | **94.4120%** | **0.7928** | **0.9433** | **0.9338** | 🏆 **Best PPO Model** |
+| Model / Experiment | Sampling | Intervention | Accuracy | Macro F1 | Weighted F1 | MCC | Best Iter | Status |
+| :--- | :--- | :--- | ---: | ---: | ---: | ---: | ---: | :--- |
+| **SecBERT Baseline** | N/A | Fine-tuned Transformer | 94.4835% | 0.7375 | 0.9445 | 0.9347 | N/A | Baseline |
+| **Warm-Start Actor** | N/A | Knowledge Distillation (BC) | **94.7368%** | 0.7438 | **0.9467** | **0.9377** | N/A | Initializer |
+| **Exp 0 (Naive PPO)** | Uniform | $+1/-1$ reward, scratch | 93.4373% | 0.6114 | 0.9300 | 0.9224 | N/A | Baseline PPO |
+| **Exp 1 (Class-Aware)** | Uniform | Log frequency reward | 93.8272% | 0.6281 | 0.9342 | 0.9268 | N/A | Reward Shaping |
+| **Exp 2 (Response-Aware)** | Uniform | CISA Phase penalty | 93.8272% | 0.6219 | 0.9332 | 0.9269 | N/A | Reward Shaping |
+| **Exp 3 (Hybrid Reward)** | Uniform | Class + Phase penalty | 93.1124% | 0.6312 | 0.9232 | 0.9183 | 70 | Reward Shaping |
+| **Exp 4A (Pure PPO)** | Uniform | Warm-start, $+1/-1$ reward | 93.5673% | 0.7616 | 0.9342 | 0.9238 | 20 | Macro-F1 peak |
+| **Exp 4A-1 (KL-PPO)** | Uniform | KL penalty ($\beta=0.5$) | 93.3073% | 0.7027 | 0.9318 | 0.9205 | N/A | Regularization |
+| **Exp 4A-2 (BC-PPO)** | Uniform | Supervised BC loss ($\lambda=0.05$) | 94.2820% | 0.7350 | 0.9422 | 0.9323 | 70 | Preservation |
+| **Exp 4B (Balanced PPO)** | Balanced | Capped inverse-sqrt ($lr=3\text{e-}4$) | 94.6069% | 0.7423 | 0.9452 | 0.9361 | 5 | Balanced baseline |
+| **Exp 4C-0 (Conservative Balanced)** | Balanced | Capped sampling + $lr=1\text{e-}4$ | **94.4120%** | **0.7928** | **0.9433** | **0.9338** | 125 | 🏆 **Best PPO Model** |
+| **Exp 4C-1 (Refined LR)** | Balanced | Capped sampling + $lr=7.5\text{e-}5$ | 94.3470% | 0.7900 | 0.9428 | 0.9331 | 135 | LR Sensitivity |
+| **Exp 4C-2 (Balanced + Mild BC)** | Balanced | Capped sampling + $lr=1\text{e-}4$, $\lambda=0.01$ | 94.5419% | 0.7451 | 0.9446 | 0.9353 | 20 | BC Hybrid |
 
 ---
 
@@ -76,20 +78,22 @@ Across 4 distinct reward formulations (naive scalar, logarithmic class-aware, se
   * **Val Macro F1:** **0.7928** (+0.0553 vs SecBERT baseline)
   * **Val Weighted F1:** **0.9433**
   * **Val MCC:** **0.9338**
-* **Per-Class Breakdown (18 Active Classes):**
-  * `patch_vulnerability`: **0.9927** (support=411)
-  * `monitor`: **0.9919** (support=123)
-  * `isolate_host`: **0.9626** (support=338)
-  * `disable_account`: **0.9562** (support=150)
-  * `kill_process`: **0.8858** (support=172)
-  * `reset_credentials`: **0.8721** (support=82)
-  * `quarantine_file`: **0.8649** (support=57)
-  * `enable_deep_logging`: **0.8571** (support=8)
-  * `quarantine_email`: **0.8454** (support=51)
-  * `restore_defense_config`: **0.7778** (support=10)
-  * `remove_persistence`: **0.7500** (support=21)
-  * `snapshot_forensics`: **1.0000** (support=1) — *Fully recovered*
-  * `block_port`: **0.0000** (support=1)
-  * `restore_registry`: **0.0000** (support=1)
+* **Verdict:** **State-of-the-Art PPO Policy**, breaking the 0.75 Macro F1 threshold and reaching **0.7928 Macro F1** while maintaining robust overall accuracy (94.41%) and MCC (0.9338).
 
-**Conclusion:** **Exp 4C-0 represents the current state-of-the-art PPO policy**, breaking the 0.75 Macro F1 threshold and reaching **0.7928 Macro F1** while maintaining robust overall accuracy (94.41%) and MCC (0.9338).
+### Exp 4C-1: Refined Learning Rate ($lr=7.5\text{e-}5$, Balanced Sampling, 150 Iterations)
+* **Hypothesis:** Testing whether a slightly lower actor learning rate ($7.5\text{e-}5$) can improve accuracy preservation while retaining high Macro F1.
+* **Checkpoint Evaluation (Iter 135):**
+  * **Val Accuracy:** **94.3470%**
+  * **Val Macro F1:** **0.7900**
+  * **Val Weighted F1:** **0.9428**
+  * **Val MCC:** **0.9331**
+* **Verdict:** Confirms that the $1\text{e-}4$ region is near-optimal. $7.5\text{e-}5$ yields virtually identical performance (0.7900 Macro F1 vs 0.7928), confirming stable convergence around this hyperparameter setting.
+
+### Exp 4C-2: Balanced Sampling + Mild BC Preservation ($lr=1\text{e-}4$, $\lambda_{BC}=0.01$)
+* **Hypothesis:** Combining capped balanced sampling with a very small behavioral cloning loss ($\lambda=0.01$) will anchor majority-class boundaries (boosting Accuracy/MCC) while allowing minority classes to benefit from balanced sampling.
+* **Checkpoint Evaluation (Iter 20):**
+  * **Val Accuracy:** **94.5419%**
+  * **Val Macro F1:** **0.7451**
+  * **Val Weighted F1:** **0.9446**
+  * **Val MCC:** **0.9353**
+* **Verdict:** Even a tiny BC preservation loss ($\lambda=0.01$) strongly pulls the policy back toward the warm-start distribution, preserving Accuracy (94.54%) but capping Macro F1 at 0.7451. Pure capped balanced sampling without BC loss (Exp 4C-0) remains the superior configuration for maximizing Macro F1 gain.
