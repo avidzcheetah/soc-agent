@@ -85,6 +85,7 @@ class PPOAgent:
         self.c2_entropy = c2_entropy
         self.k_epochs = k_epochs
         self.batch_size = batch_size
+        self.bc_lambda = 0.0  # set via agent.bc_lambda after init
 
     def select_action(
         self,
@@ -254,7 +255,13 @@ class PPOAgent:
         total_value_loss = 0.0
         total_entropy = 0.0
         total_kl_penalty = 0.0
+        total_bc_loss = 0.0
         num_updates = 0
+
+        # Ground truth labels for BC loss (stored alongside states in memory)
+        has_gt = len(memory.ground_truths) == len(memory.states) and any(g >= 0 for g in memory.ground_truths)
+        if has_gt:
+            gt_tensor = torch.tensor(memory.ground_truths, dtype=torch.int64, device=self.device)
 
         for epoch in range(self.k_epochs):
             # Generate randomized index permutation for each epoch
@@ -295,12 +302,10 @@ class PPOAgent:
                 # G. Negate because PyTorch minimizes, but we want to maximize expected reward
                 policy_loss = -torch.min(surr1, surr2).mean()
 
-                # Step 7.5: Actor Optimization (PPO loss - entropy bonus + optional KL penalty)
+                # Step 7.5: Actor Optimization (PPO loss - entropy bonus + optional KL + optional BC)
                 actor_loss = policy_loss - self.c2_entropy * dist_entropy
 
-                # KL constraint: penalize drift from the reference (warm-start) policy.
-                # KL(ref || current) encourages the current policy to stay close to the
-                # supervised warm-start, preventing catastrophic forgetting.
+                # KL constraint against reference warm-start policy
                 if ref_actor is not None and kl_beta > 0.0:
                     with torch.no_grad():
                         ref_logits = ref_actor(b_states)
@@ -312,6 +317,17 @@ class PPOAgent:
                     )
                     actor_loss = actor_loss + kl_beta * kl_penalty
                     total_kl_penalty += kl_penalty.item()
+
+                # BC (Behavioral Cloning) preservation loss:
+                # Cross-entropy between actor logits and ground-truth labels.
+                # Keeps the policy from drifting away from the supervised solution.
+                if has_gt and self.bc_lambda > 0.0:
+                    b_gt = gt_tensor[batch_indices]
+                    valid_mask = b_gt >= 0
+                    if valid_mask.any():
+                        bc_loss = F.cross_entropy(new_logits[valid_mask], b_gt[valid_mask])
+                        actor_loss = actor_loss + self.bc_lambda * bc_loss
+                        total_bc_loss += bc_loss.item()
 
                 self.actor_optimizer.zero_grad()
                 actor_loss.backward()
@@ -351,6 +367,7 @@ class PPOAgent:
             "value_loss": total_value_loss / num_updates if num_updates > 0 else 0.0,
             "entropy": total_entropy / num_updates if num_updates > 0 else 0.0,
             "kl_penalty": total_kl_penalty / num_updates if num_updates > 0 else 0.0,
+            "bc_loss": total_bc_loss / num_updates if num_updates > 0 else 0.0,
         }
 
 

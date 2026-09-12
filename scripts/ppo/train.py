@@ -53,6 +53,9 @@ def parse_args():
                         help="Path to warm-started Actor weights (from warmstart_actor.py)")
     parser.add_argument("--kl_beta", type=float, default=0.0,
                         help="KL penalty coefficient against warm-start reference policy (0.0 = disabled)")
+    parser.add_argument("--bc_lambda", type=float, default=0.0,
+                        help="BC cross-entropy preservation coefficient (0.0 = disabled). "
+                             "Adds supervised cross-entropy loss to the actor during PPO updates.")
 
     return parser.parse_args()
 
@@ -107,6 +110,7 @@ def main():
         batch_size=args.batch_size,
         device=device,
     )
+    agent.bc_lambda = args.bc_lambda  # BC preservation coefficient
 
     # 4.5 Load warm-started Actor weights if provided (Experiment 4A)
     ref_actor = None

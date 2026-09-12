@@ -132,6 +132,7 @@ def main():
     macro_f1    = f1_score(y_true, y_pred, average="macro",    zero_division=0)
     weighted_f1 = f1_score(y_true, y_pred, average="weighted", zero_division=0)
     mcc         = matthews_corrcoef(y_true, y_pred)
+    active_labels = sorted(set(y_true.tolist()))
 
     print()
     print("=" * 65)
@@ -144,33 +145,34 @@ def main():
     print(f"  {'Val Weighted F1':<22} {weighted_f1:>20.4f}  {'0.9445':>18}")
     print(f"  {'Val MCC':<22} {mcc:>20.4f}  {'0.9347':>18}")
 
-    # ── 8. Per-class report ───────────────────────────────────────────
+    # ── 8. Per-class report ───────────────────────────────────────────────────────────
     print()
     print("=" * 65)
-    print("Per-Class F1 — Warm-Start Actor")
+    print(f"Per-Class F1 — {len(active_labels)} active classes (0-support classes excluded)")
     print("=" * 65)
+    active_names = [action_names[i] for i in active_labels]
     report = classification_report(
         y_true, y_pred,
-        labels=list(range(20)),
-        target_names=action_names,
+        labels=active_labels,
+        target_names=active_names,
         zero_division=0,
         digits=4,
     )
     print(report)
 
-    # ── 9. Highlight collapsed classes ───────────────────────────────
-    per_class_f1 = f1_score(y_true, y_pred, average=None, zero_division=0, labels=list(range(20)))
+    # ── 9. Collapsed classes ─────────────────────────────────────────────────────────
+    per_class_f1 = f1_score(y_true, y_pred, average=None, zero_division=0, labels=active_labels)
     print("=" * 65)
-    print("Collapsed / Struggling Classes (F1 < 0.50)")
+    print("Struggling Active Classes (F1 < 0.50)")
     print("=" * 65)
     any_collapsed = False
-    for idx, f1 in enumerate(per_class_f1):
+    for idx, f1 in zip(active_labels, per_class_f1):
         support = int((y_true == idx).sum())
         if f1 < 0.50:
             print(f"  [{idx:02d}] {action_names[idx]:<30}  F1={f1:.4f}  support={support}")
             any_collapsed = True
     if not any_collapsed:
-        print("  (none — all classes F1 >= 0.50)")
+        print("  (none — all active classes F1 >= 0.50)")
 
     # ── 10. Confusion matrix summary (top misclassifications) ─────────
     print()

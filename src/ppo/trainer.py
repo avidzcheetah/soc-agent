@@ -78,6 +78,7 @@ class PPOTrainer:
         # 3. State and metric tracking
         self.history: List[Dict[str, float]] = []
         self.best_eval_macro_f1: float = -1.0
+        self.best_eval_composite: float = -1.0   # composite of all four metrics
         self.last_eval_y_true: List[int] = []
         self.last_eval_y_pred: List[int] = []
         self._current_obs: Optional[torch.Tensor] = None
@@ -128,7 +129,7 @@ class PPOTrainer:
             # rather than creating spurious temporal dependencies between unrelated alerts.
             done = True
 
-            # 3. Store in memory buffer
+            # 3. Store in memory buffer (include ground_truth for optional BC loss)
             self.memory.store(
                 state=self._current_obs,
                 action=action,
@@ -136,6 +137,7 @@ class PPOTrainer:
                 log_prob=log_prob,
                 value=state_value,
                 done=done,
+                ground_truth=info.get("ground_truth", -1),
             )
 
             # 4. Track statistics
@@ -290,6 +292,7 @@ class PPOTrainer:
             print(f"  Epochs / Update: {self.agent.k_epochs}")
             print(f"  Device: {self.agent.device}")
             print(f"  KL Beta (ref policy): {self.kl_beta}")
+            print(f"  BC Lambda (supervised preservation): {getattr(self.agent, 'bc_lambda', 0.0)}")
             print("=" * 70)
 
         # Reset environment before training starts
@@ -321,14 +324,32 @@ class PPOTrainer:
                 eval_metrics = self.evaluate()
                 iter_metrics.update(eval_metrics)
 
-                # Checkpoint best policy based on validation Macro F1
-                if eval_metrics["eval_macro_f1"] > self.best_eval_macro_f1:
-                    self.best_eval_macro_f1 = eval_metrics["eval_macro_f1"]
+                # Checkpoint best policy based on COMPOSITE score:
+                # average of Macro F1, Accuracy, Weighted F1, and MCC — all normalized to [0,1].
+                # This avoids cherry-picking a policy that excels at one metric while
+                # degrading the others (the exact failure mode seen in 4A-PPO).
+                composite = (
+                    eval_metrics["eval_macro_f1"]
+                    + eval_metrics["eval_accuracy"]
+                    + eval_metrics["eval_weighted_f1"]
+                    + eval_metrics["eval_mcc"]
+                ) / 4.0
+                self.best_eval_macro_f1 = eval_metrics["eval_macro_f1"]  # kept for reporting
+
+                if composite > self.best_eval_composite:
+                    self.best_eval_composite = composite
                     if self.save_dir is not None:
                         best_path = os.path.join(self.save_dir, "best_ppo_policy.pt")
                         self.save_checkpoint(best_path)
                         if verbose:
-                            print(f"  [*] New best eval Macro F1: {self.best_eval_macro_f1:.4f} -> Saved to {best_path}")
+                            print(
+                                f"  [*] New best composite {composite:.4f} "
+                                f"(MacF1={eval_metrics['eval_macro_f1']:.4f}, "
+                                f"Acc={eval_metrics['eval_accuracy']:.4f}, "
+                                f"WF1={eval_metrics['eval_weighted_f1']:.4f}, "
+                                f"MCC={eval_metrics['eval_mcc']:.4f}) "
+                                f"-> Saved"
+                            )
 
             self.history.append(iter_metrics)
 

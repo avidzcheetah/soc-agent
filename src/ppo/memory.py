@@ -29,6 +29,7 @@ class PPOMemory:
         self.log_probs: List[float] = []
         self.values: List[float] = []
         self.dones: List[bool] = []
+        self.ground_truths: List[int] = []  # ground-truth label for BC loss
 
     def store(
         self,
@@ -38,6 +39,7 @@ class PPOMemory:
         log_prob: float,
         value: float,
         done: bool,
+        ground_truth: int = -1,
     ) -> None:
         """
         Append one interaction step to the memory buffer.
@@ -49,6 +51,7 @@ class PPOMemory:
             log_prob: Log probability of the selected action.
             value: Critic value estimate of the state.
             done: Termination flag boolean.
+            ground_truth: The correct action label for this incident (for BC loss).
         """
         self.states.append(state)
         self.actions.append(int(action))
@@ -56,6 +59,7 @@ class PPOMemory:
         self.log_probs.append(float(log_prob))
         self.values.append(float(value))
         self.dones.append(bool(done))
+        self.ground_truths.append(int(ground_truth))
 
     def clear(self) -> None:
         """
@@ -67,6 +71,7 @@ class PPOMemory:
         self.log_probs.clear()
         self.values.clear()
         self.dones.clear()
+        self.ground_truths.clear()
 
     def __len__(self) -> int:
         """Return the current number of stored interactions in the buffer."""
