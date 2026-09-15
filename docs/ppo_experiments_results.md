@@ -24,6 +24,8 @@ The test set remains completely frozen and untouched during this phase.
 | **Exp 4C-1 (Refined LR)** | Balanced | Capped sampling + $lr=7.5\text{e-}5$ | 94.3470% | 0.7900 | 0.9428 | 0.9331 | 135 | LR Sensitivity |
 | **Exp 4C-2 (Balanced + Mild BC)** | Balanced | Capped sampling + $lr=1\text{e-}4$, $\lambda=0.01$ | 94.5419% | 0.7451 | 0.9446 | 0.9353 | 20 | BC Hybrid |
 | **Exp 4C-3 (Higher Entropy)** | Balanced | Capped sampling + $lr=1\text{e-}4$, $c_2=0.02$ | 94.4769% | 0.7926 | 0.9439 | 0.9346 | 135 | Entropy Analysis |
+| **Exp 4C-4 (Early Stopping)** | Balanced | 4C-3 config + early stopping (patience=4) | 94.2820% | 0.7398 | 0.9420 | 0.9323 | 30 | Stopped too early |
+| **Exp 4C-5 (Periodic Checkpoints)**| Balanced | 4C-3 config + periodic checkpointing | **94.4769%**| **0.7926** | **0.9439** | **0.9346** | 135 | **Validated Peak** |
 
 ---
 
@@ -108,6 +110,16 @@ Across 4 distinct reward formulations (naive scalar, logarithmic class-aware, se
   * **Val MCC:** **0.9346**
 * **Verdict:** Essentially matched 4C-0's peak (Macro F1 0.7926 vs 0.7928). Crucially, **the late-training collapse still occurred** (dropping to 0.7136 by iteration 150). This proves that simply increasing the entropy penalty does not prevent policy drift caused by over-optimization.
 
-### Structural Improvement: Validation-Based Early Stopping (Pre-4C-4)
+### Structural Improvement: Validation-Based Early Stopping (Exp 4C-4)
 * **Finding:** The degradation seen in late iterations (140-150) of 4C-0 and 4C-3 demonstrates that PPO continues optimizing beyond the ideal generalized policy, progressively destroying minority-class performance in favor of common actions (e.g. `patch_vulnerability`, `kill_process`). 
-* **Solution:** A validation composite score `(Macro F1 + Accuracy + Weighted F1 + MCC) / 4` early stopping mechanism was implemented directly into `trainer.py` with a patience of 4 evaluations (20 iterations) to formalize the model selection process.
+* **Solution (Exp 4C-4):** A validation composite score `(Macro F1 + Accuracy + Weighted F1 + MCC) / 4` early stopping mechanism was implemented directly into `trainer.py` with a patience of 4 evaluations (20 iterations) to formalize the model selection process.
+* **Verdict:** Early stopping with patience=4 was too aggressive. It triggered at iteration 50 (Macro F1: 0.7398), failing to reach the high-performance region that emerges around iteration 125. The training trajectory is non-monotonic, meaning temporary validation valleys must be tolerated.
+
+### Exp 4C-5: Periodic Checkpointing & Trajectory Analysis ($lr=1\text{e-}4$, $c_2=0.02$)
+* **Hypothesis:** By disabling early stopping (patience=150) and saving checkpoints every 5 iterations, we can definitively prove the reproducibility of the high-Macro-F1 region and map the exact trajectory of policy drift.
+* **Checkpoint Evaluation (Iter 135 Peak):**
+  * **Val Accuracy:** **94.4769%**
+  * **Val Macro F1:** **0.7926**
+  * **Val Weighted F1:** **0.9439**
+  * **Val MCC:** **0.9346**
+* **Verdict:** The independent evaluation of periodic checkpoints confirmed that the policy reaches a stable, high-performance region between iterations 125–135 (consistently >0.78 Macro F1) before undergoing a sharp degradation (Macro F1 drops to ~0.71 by iteration 150). Iteration 135 is currently the **best PPO validation checkpoint**, achieving a +0.0551 Macro F1 improvement over the SecBERT baseline while maintaining robust overall accuracy and MCC.
