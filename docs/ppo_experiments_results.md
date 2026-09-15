@@ -23,6 +23,7 @@ The test set remains completely frozen and untouched during this phase.
 | **Exp 4C-0 (Conservative Balanced)** | Balanced | Capped sampling + $lr=1\text{e-}4$ | **94.4120%** | **0.7928** | **0.9433** | **0.9338** | 125 | 🏆 **Best PPO Model** |
 | **Exp 4C-1 (Refined LR)** | Balanced | Capped sampling + $lr=7.5\text{e-}5$ | 94.3470% | 0.7900 | 0.9428 | 0.9331 | 135 | LR Sensitivity |
 | **Exp 4C-2 (Balanced + Mild BC)** | Balanced | Capped sampling + $lr=1\text{e-}4$, $\lambda=0.01$ | 94.5419% | 0.7451 | 0.9446 | 0.9353 | 20 | BC Hybrid |
+| **Exp 4C-3 (Higher Entropy)** | Balanced | Capped sampling + $lr=1\text{e-}4$, $c_2=0.02$ | 94.4769% | 0.7926 | 0.9439 | 0.9346 | 135 | Entropy Analysis |
 
 ---
 
@@ -97,3 +98,16 @@ Across 4 distinct reward formulations (naive scalar, logarithmic class-aware, se
   * **Val Weighted F1:** **0.9446**
   * **Val MCC:** **0.9353**
 * **Verdict:** Even a tiny BC preservation loss ($\lambda=0.01$) strongly pulls the policy back toward the warm-start distribution, preserving Accuracy (94.54%) but capping Macro F1 at 0.7451. Pure capped balanced sampling without BC loss (Exp 4C-0) remains the superior configuration for maximizing Macro F1 gain.
+
+### Exp 4C-3: Higher Entropy Coefficient ($lr=1\text{e-}4$, $c_2=0.02$)
+* **Hypothesis:** Doubling the entropy coefficient from 0.01 to 0.02 will maintain exploration and prevent the late-training performance collapse (from Macro F1 ~0.79 down to ~0.70) observed in 4C-0.
+* **Checkpoint Evaluation (Iter 135):**
+  * **Val Accuracy:** **94.4769%**
+  * **Val Macro F1:** **0.7926**
+  * **Val Weighted F1:** **0.9439**
+  * **Val MCC:** **0.9346**
+* **Verdict:** Essentially matched 4C-0's peak (Macro F1 0.7926 vs 0.7928). Crucially, **the late-training collapse still occurred** (dropping to 0.7136 by iteration 150). This proves that simply increasing the entropy penalty does not prevent policy drift caused by over-optimization.
+
+### Structural Improvement: Validation-Based Early Stopping (Pre-4C-4)
+* **Finding:** The degradation seen in late iterations (140-150) of 4C-0 and 4C-3 demonstrates that PPO continues optimizing beyond the ideal generalized policy, progressively destroying minority-class performance in favor of common actions (e.g. `patch_vulnerability`, `kill_process`). 
+* **Solution:** A validation composite score `(Macro F1 + Accuracy + Weighted F1 + MCC) / 4` early stopping mechanism was implemented directly into `trainer.py` with a patience of 4 evaluations (20 iterations) to formalize the model selection process.
