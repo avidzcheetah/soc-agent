@@ -56,6 +56,7 @@ class PPOTrainer:
         save_dir: Optional[str] = "models/ppo",
         ref_actor=None,
         kl_beta: float = 0.0,
+        early_stopping_patience: int = 4,
     ):
         # 1. Core RL components
         self.env = env
@@ -74,6 +75,9 @@ class PPOTrainer:
         # KL constraint: frozen reference policy for policy preservation
         self.ref_actor = ref_actor
         self.kl_beta = kl_beta
+
+        self.early_stopping_patience = early_stopping_patience
+        self.early_stopping_counter = 0
 
         # 3. State and metric tracking
         self.history: List[Dict[str, float]] = []
@@ -340,6 +344,7 @@ class PPOTrainer:
 
                 if composite > self.best_eval_composite:
                     self.best_eval_composite = composite
+                    self.early_stopping_counter = 0
                     # Record the four metrics for this best checkpoint for final reporting
                     self.best_composite_info = {
                         "iteration": iteration,
@@ -361,6 +366,21 @@ class PPOTrainer:
                                 f"MCC={eval_metrics['eval_mcc']:.4f}) "
                                 f"-> Saved @ iter {iteration}"
                             )
+                else:
+                    self.early_stopping_counter += 1
+                    if verbose:
+                        print(
+                            f"  [Early Stopping] No composite improvement: "
+                            f"{self.early_stopping_counter}/"
+                            f"{self.early_stopping_patience}"
+                        )
+                    if self.early_stopping_counter >= self.early_stopping_patience:
+                        if verbose:
+                            print(
+                                f"\n[STOP] Early stopping triggered at iteration {iteration}. "
+                                f"Best composite: {self.best_eval_composite:.4f}"
+                            )
+                        break
 
             self.history.append(iter_metrics)
 

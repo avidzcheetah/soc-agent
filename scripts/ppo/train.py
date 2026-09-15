@@ -46,6 +46,7 @@ def parse_args():
     parser.add_argument("--rollout_steps", type=int, default=256, help="Rollout steps per iteration")
     parser.add_argument("--eval_interval", type=int, default=10, help="Validation interval (in iterations)")
     parser.add_argument("--eval_steps", type=int, default=100, help="Number of eval steps per validation")
+    parser.add_argument("--early_stopping_patience", type=int, default=4, help="Patience (eval intervals) for early stopping")
     parser.add_argument("--log_interval", type=int, default=5, help="Logging interval (in iterations)")
     parser.add_argument("--save_dir", type=str, default="models/ppo", help="Directory to save checkpoints")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
@@ -155,6 +156,7 @@ def main():
         save_dir=args.save_dir,
         ref_actor=ref_actor,
         kl_beta=args.kl_beta,
+        early_stopping_patience=args.early_stopping_patience,
     )
 
     # 6. Execute Training
