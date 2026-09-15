@@ -122,4 +122,16 @@ Across 4 distinct reward formulations (naive scalar, logarithmic class-aware, se
   * **Val Macro F1:** **0.7926**
   * **Val Weighted F1:** **0.9439**
   * **Val MCC:** **0.9346**
+* **4C-5 Checkpoint Trajectory Comparison:**
+
+| Iteration |     Accuracy |   Macro F1 | Weighted F1 |        MCC |
+| --------: | -----------: | ---------: | ----------: | ---------: |
+|       120 |     94.0221% | **0.7842** |      0.9394 |     0.9292 |
+|       125 |     94.3470% | **0.7919** |      0.9424 |     0.9329 |
+|       130 |     94.2170% | **0.7911** |      0.9414 |     0.9315 |
+|   **135** | **94.4769%** | **0.7926** |  **0.9439** | **0.9346** |
+|       140 |     94.2820% |     0.7335 |      0.9417 |     0.9323 |
+|       145 |     94.0221% |     0.7163 |      0.9381 |     0.9291 |
+|       150 |     93.9571% |     0.7136 |      0.9373 |     0.9283 |
+
 * **Verdict:** The independent evaluation of periodic checkpoints confirmed that the policy reaches a stable, high-performance region between iterations 125–135 (consistently >0.78 Macro F1) before undergoing a sharp degradation (Macro F1 drops to ~0.71 by iteration 150). Iteration 135 is currently the **best PPO validation checkpoint**, achieving a +0.0551 Macro F1 improvement over the SecBERT baseline while maintaining robust overall accuracy and MCC.
