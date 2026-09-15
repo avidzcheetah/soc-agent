@@ -131,10 +131,12 @@ We transitioned from reward shaping to an environment sampling and optimization 
 
 **Empirical Result:**
 Experiment **EXP_PPO_004C-5** achieved a peak validation performance at iteration 135:
-- **Accuracy:** 94.4769%
-- **Macro F1:** **0.7926** (+0.0551 over SecBERT baseline)
-- **Weighted F1:** 0.9439
-- **MCC:** +0.9346
+
+| Model            |     Accuracy |   Macro F1 | Weighted F1 |        MCC |
+| ---------------- | -----------: | ---------: | ----------: | ---------: |
+| SecBERT          |     94.4835% |     0.7375 |      0.9445 |     0.9347 |
+| Warm-start Actor |     94.7368% |     0.7438 |      0.9467 |     0.9377 |
+| **PPO-135**      | **94.4769%** | **0.7926** |  **0.9439** | **0.9346** |
 
 **Key Finding:** 
 Balanced PPO with warm-start initialization, a reduced actor learning rate of $1 \times 10^{-4}$, and entropy coefficient 0.02 achieved a validation Macro F1 of 0.7926 at iteration 135, substantially improving balanced response-action performance over the SecBERT baseline (0.7375) while maintaining essentially the same overall accuracy, weighted F1, and MCC. Further PPO updates caused performance degradation.
