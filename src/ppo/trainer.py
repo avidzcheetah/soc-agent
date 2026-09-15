@@ -382,6 +382,10 @@ class PPOTrainer:
                             )
                         break
 
+                if self.save_dir is not None:
+                    periodic_path = os.path.join(self.save_dir, f"checkpoint_iter_{iteration:03d}.pt")
+                    self.save_checkpoint(periodic_path)
+
             self.history.append(iter_metrics)
 
             # 5. Logging
