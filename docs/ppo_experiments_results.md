@@ -136,3 +136,19 @@ Across 4 distinct reward formulations (naive scalar, logarithmic class-aware, se
 
 * **Verdict:** The independent evaluation of periodic checkpoints confirmed that the policy reaches a stable, high-performance region between iterations 125–135 (consistently >0.78 Macro F1) before undergoing a sharp degradation (Macro F1 drops to ~0.71 by iteration 150). Iteration 135 is currently the **best PPO validation checkpoint**, achieving a +0.0551 Macro F1 improvement over the SecBERT baseline while maintaining robust overall accuracy and MCC.
 * **Remaining Weakness:** The three validation classes with only one sample each (`block_port`, `restore_registry`, `snapshot_forensics`) remain extremely unstable (F1=0 or F1=1.0 depending on the checkpoint). However, because these one-sample classes lack statistically significant support, the overall PPO optimization strategy should not be constrained to cater exclusively to them.
+
+---
+
+## Phase 2D: Val-to-Test Generalization Gap Diagnosis
+
+* **Finding:** While PPO-135 achieved a peak Validation Macro F1 of **0.7926**, evaluating this exact checkpoint on the untouched test set yielded a Test Macro F1 of only **0.7057**. This ~0.087 drop indicates a substantial generalization failure.
+* **Diagnosis Steps Conducted:**
+  1. **Class Distribution Check:** Confirmed that train, validation, and test datasets have nearly identical class distributions. The gap is *not* caused by data split imbalances.
+  2. **Per-Class F1 Gap Analysis:** Conducted a side-by-side evaluation of PPO-135 on both validation and test sets.
+* **Key Observations:**
+  * **Severe Regressions on Specific Classes:** The Macro F1 drop is primarily driven by three classes that perform well on validation but collapse on test:
+    * `restore_defense_config`: Val F1 0.7500 $\rightarrow$ Test F1 0.1818 (Gap -0.5682)
+    * `enable_deep_logging`: Val F1 0.8571 $\rightarrow$ Test F1 0.7692 (Gap -0.0879)
+    * `snapshot_forensics`: Val F1 1.0000 $\rightarrow$ Test F1 0.0000 (Gap -1.0000)
+  * **Stability on Core Classes:** Common/critical actions like `isolate_host`, `disable_account`, and `patch_vulnerability` maintain excellent generalization (Gap < ±0.01).
+* **Verdict:** PPO is severely overfitting the decision boundaries of a few specific minority classes during training/validation. Because the state embeddings are 768-dimensional, PPO is likely memorizing the exact semantic vectors of the few validation samples for these rare classes, failing to generalize to unseen test variations. The next step must focus on generalization/regularization.
