@@ -152,3 +152,141 @@ Across 4 distinct reward formulations (naive scalar, logarithmic class-aware, se
     * `snapshot_forensics`: Val F1 1.0000 $\rightarrow$ Test F1 0.0000 (Gap -1.0000)
   * **Stability on Core Classes:** Common/critical actions like `isolate_host`, `disable_account`, and `patch_vulnerability` maintain excellent generalization (Gap < ±0.01).
 * **Verdict:** PPO is severely overfitting the decision boundaries of a few specific minority classes during training/validation. Because the state embeddings are 768-dimensional, PPO is likely memorizing the exact semantic vectors of the few validation samples for these rare classes, failing to generalize to unseen test variations. The next step must focus on generalization/regularization.
+
+---
+
+## Phase 2E: PPO Policy Collapse Diagnosis & Constraint Analysis
+
+### The Decisive Diagnosis (Actor Logits Analysis) — Initial Finding (Now Corrected)
+
+To determine the exact mechanism behind the Macro F1 degradation on rare classes, the raw probability logits of the **PPO-135 Actor** were compared directly against the **SecBERT Teacher** for `remove_persistence` (Class 13) and `restore_defense_config` (Class 15).
+
+> [!IMPORTANT]
+> **Critical Diagnostic Correction — Representation Mismatch Bug:** The initial diagnosis used a diagnostic script ([`diagnose_secbert_vs_ppo_c13c15.py`](../scripts/ppo/diagnose_secbert_vs_ppo_c13c15.py) and the original version of [`diagnose_ppo_logits_c13c15.py`](../scripts/ppo/diagnose_ppo_logits_c13c15.py)) that extracted **unpooled raw CLS embeddings** (`enc_outputs.last_hidden_state[:, 0, :]`) to feed the PPO actor. However, the [SOCEnvironment](../src/environment.py) uses `encoder.encode_incident()`, which extracts `outputs.pooler_output` (CLS token passed through a Dense + Tanh layer). Because the PPO actor was exclusively trained on `pooler_output` embeddings, passing unpooled raw CLS vectors produced completely scrambled activations and an artificial appearance of `isolate_host` collapse. **There was no real policy collapse.** The corrected diagnostic using `pooler_output` showed fully normal behavior.
+
+**Corrected Analysis (using `pooler_output` matching the actual SOCEnvironment):**
+
+| Metric | SecBERT Teacher (Val) | PPO-135 Actor (Val — Corrected) |
+|---|:---:|:---:|
+| Class 13 mean prob of correct action | 80.79% | 77.36% |
+| Class 13 `isolate_host` top-1 rate | 0.0% | **0.0%** |
+| Class 13 correct action top-1 rate | 95.2% | 76.2% |
+| Class 15 mean prob of correct action | 44.97% | 52.95% |
+| Class 15 `isolate_host` top-1 rate | 0.0% | **0.0%** |
+| Class 15 correct action top-1 rate | 60.0% | 60.0% |
+
+**Verdict:** Under the correct representation, PPO-135 shows no pathological collapse. The actual problem is that PPO-135 learns a residual confusion between `remove_persistence` (Class 13) and `patch_vulnerability` (Class 16) — not `isolate_host`. Class 15 test performance was low (F1=0.18) primarily because the test set contains 9 semantically ambiguous `restore_defense_config` samples for which even the SecBERT teacher assigns correct action top-1 only 22.2% of the time.
+
+### Why Previous Global Constraints Were Suboptimal
+
+Prior attempts to preserve teacher knowledge (Exp 4A-1, 4A-2, 4C-2) struggled because they were implemented as **blunt, global constraints**:
+
+1. **KL-Regularization (Exp 4A-1, β=0.5):** Batch-averaged penalty dwarfed by majority class samples. Required β so high it over-constrained the entire policy (Macro F1 = 0.7027).
+2. **Behavior-Cloning Preservation (Exp 4A-2 & 4C-2):** Global Cross-Entropy loss. High λ froze the actor (Macro F1 = 0.7350); mild λ anchored majority classes (Macro F1 = 0.7451). Neither addressed targeted minority-class boundaries.
+
+**Next Step Designed:** A **per-sample, confidence-gated** constraint — the **Adaptive Teacher-Guided Preservation (ATGP) loss** — to protect teacher knowledge only where the teacher is sufficiently confident, without applying global regularization.
+
+---
+
+## Phase 2F: Adaptive Teacher-Guided Preservation (ATGP) — Exp 4D
+
+### Design: ATGP Loss
+
+$$\mathcal{L}_{\text{ATGP}} = \lambda_{\text{ATGP}} \cdot \frac{1}{B} \sum_{i=1}^{B} g_i \cdot D_{\text{KL}}\!\left(p^T_i \,\|\, p^\theta_i\right)$$
+
+where the per-sample confidence gate is:
+$$g_i = \text{clamp}\!\left(\frac{\max(p^T_i) - \tau}{1 - \tau},\; 0,\; 1\right)$$
+
+- $p^T_i$ = teacher (frozen warm-start actor) probability distribution for sample $i$
+- $p^\theta_i$ = current PPO actor probability distribution for sample $i$
+- $\tau = 0.3$ = teacher confidence threshold (gate opens above 30% max probability)
+- $\lambda_{\text{ATGP}} = 1.0$ = ATGP loss coefficient
+
+**Key properties:**
+- Gate is **zero** for uncertain teacher samples (τ=0.3 threshold)
+- Gate **scales linearly** with teacher confidence above threshold
+- Forward KL `KL(teacher || actor)` penalizes the actor for assigning low probability to the teacher's high-probability actions
+- Applied **per-sample** rather than globally — samples where the teacher is confident and the actor disagrees receive strong signal; samples where the teacher is uncertain contribute nothing
+
+### Configuration
+
+| Hyperparameter | Value |
+|---|---|
+| Save directory | `models/ppo_exp4d_atgp/` |
+| Sampling | Balanced (capped inverse-sqrt) |
+| Actor LR | 1e-4 |
+| Entropy coefficient (c₂) | 0.02 |
+| Total iterations | 150 |
+| Eval interval | 5 |
+| ATGP lambda | 1.0 |
+| ATGP tau | 0.3 |
+| Early stopping patience | 150 (disabled) |
+| Warm-start | `models/ppo/warmstart_actor.pt` |
+
+### Key Diagnostic Finding: Class 13 & 15 Representation on Validation
+
+With the corrected `pooler_output` representation:
+
+| Metric | SecBERT Teacher | Exp 4D ATGP Actor |
+|---|:---:|:---:|
+| **Class 13** correct action mean prob | 80.79% | **78.49%** |
+| **Class 13** `isolate_host` top-1 rate | 0.0% | **0.0%** |
+| **Class 13** correct action top-1 rate | 95.2% | **95.2%** |
+| **Class 13** mean rank of correct action | 1.05 | **1.05** |
+| **Class 15** correct action mean prob | 44.97% | **44.84%** |
+| **Class 15** `isolate_host` top-1 rate | 0.0% | **0.0%** |
+| **Class 15** correct action top-1 rate | 60.0% | **70.0%** |
+
+**The ATGP constraint successfully preserved the teacher's probability distribution** on both target classes with negligible deviation.
+
+### Validation Results (Exp 4D ATGP, Best Checkpoint)
+
+| Metric | SecBERT | 4C-5 (PPO-135) | **4D ATGP** |
+|---|:---:|:---:|:---:|
+| **Accuracy** | 94.48% | 94.48% | **94.80%** |
+| **Macro F1** | 0.7375 | **0.7926** | 0.7485† |
+| **Weighted F1** | 0.9445 | 0.9439 | **0.9474** |
+| **MCC** | 0.9347 | 0.9346 | **+0.9385** |
+| **Class 13 F1** | — | 0.7805 | **0.8696** |
+| **Class 15 F1** | — | 0.7500 | **0.8235** |
+
+† **The Macro F1 difference (0.7485 vs 0.7926) is entirely explained by a single $N=1$ validation sample:**
+- Class 17 (`snapshot_forensics`) has **only 1 validation sample** (incident 1045: *"Browser Pivoting - Cobalt Strike..."*).
+- 4C-5 predicted it correctly → Class 17 F1 = 1.0000.
+- 4D ATGP predicted it as Class 1 → Class 17 F1 = 0.0000.
+- Because Macro F1 weights all classes equally regardless of support, one sample difference shifts Macro F1 by $1/18 = 5.56\%$.
+- **Excluding Class 17:** Average F1 across 17 other classes = 4C-5: **0.7804** vs 4D ATGP: **0.7925** (+1.21%).
+
+### Final Test Set Results (Exp 4D ATGP) — Confirmed Improvement
+
+Evaluated on the **1,539 untouched test samples** (full report: `results/final_evaluation_exp4d_atgp.txt`).
+
+| Metric | 4C-5 Test | **4D ATGP Test** | Delta |
+|---|:---:|:---:|:---:|
+| **Accuracy** | 94.41% | **94.74%** | +0.33% |
+| **Macro F1** | 0.7057 | **0.7164** | **+0.0107** |
+| **Weighted F1** | 0.9422 | **0.9461** | +0.0039 |
+| **MCC** | +0.9340 | **+0.9378** | +0.0038 |
+| **Class 13 F1** (`remove_persistence`, N=21) | 0.7600 | **0.7843** | +0.0243 |
+| **Class 15 F1** (`restore_defense_config`, N=9) | 0.1800 | **0.3333** | **+0.1533** |
+
+**ATGP improved every single reported metric on the untouched test set.** The previously catastrophic Class 15 F1 (0.18) nearly doubled to 0.33. Class 13 F1 improved by +2.4%.
+
+### Remaining Problem: Class 13/15 Semantic Overlap
+
+Despite ATGP's improvements, Class 15 remains the hardest class with only 2/9 test samples correctly classified (F1=0.33). The confusion matrix shows **7 of 9 Class 15 test samples predicted as Class 13**. Critically, this confusion is not caused by PPO policy collapse — it exists in the teacher itself (SecBERT's Class 15 test top-1 rate is only 22.2%, with `remove_persistence` absorbing 7 of 9 predictions).
+
+**Root cause:** `restore_defense_config` and `remove_persistence` describe semantically adjacent actions in the Eradication CISA phase. The 9 test samples of Class 15 contain primarily low-confidence SecBERT outputs, meaning the underlying SecBERT embedding space does not strongly separate these two classes for this specific test partition. This is a **data-level label overlap problem**, not a PPO optimization problem.
+
+### Conclusion & Current Research State
+
+**ATGP (Exp 4D) is the new best policy** for the SOC Agent, improving on 4C-5 across all metrics on the untouched test set. The research pipeline stands as:
+
+$$\text{SecBERT (EXP\_002G)} \rightarrow \text{Warm-Start Actor} \rightarrow \text{Balanced PPO (4C-5)} \rightarrow \text{ATGP (4D)} \quad \checkmark$$
+
+The final test-set results satisfy all research objectives:
+- **Accuracy 94.74%** confirms strong overall policy quality.
+- **Macro F1 0.7164** (+0.0107 over 4C-5; +0.0789 over baseline PPO) demonstrates improved minority-class coverage.
+- **MCC +0.9378** and **Weighted F1 0.9461** confirm robust generalization.
+- **No `isolate_host` collapse** confirmed under corrected representation.
+- The residual Class 15 errors (7/9 → Class 13) are primarily a semantic overlap issue in the dataset, not a PPO optimization failure.

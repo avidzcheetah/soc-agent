@@ -4,5 +4,6 @@ __pycache__/
 
 experiments/
 logs/
-models/
+models/*
+!models/README.md
 results/
