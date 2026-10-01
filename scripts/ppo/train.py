@@ -62,6 +62,13 @@ def parse_args():
                         help="Training experience sampling strategy: "
                              "'uniform' = random (default), "
                              "'balanced' = capped class-frequency-weighted sampling to improve minority-class coverage.")
+    parser.add_argument("--atgp_lambda", type=float, default=0.0,
+                        help="ATGP teacher-preservation coefficient (0.0 = disabled). "
+                             "Adaptive Teacher-Guided Preservation: per-sample, confidence-gated KL "
+                             "against frozen teacher to prevent policy collapse on minority classes.")
+    parser.add_argument("--atgp_tau", type=float, default=0.3,
+                        help="ATGP teacher confidence threshold. Only samples where the teacher's "
+                             "max probability exceeds this threshold receive the preservation loss.")
 
     return parser.parse_args()
 
@@ -118,6 +125,8 @@ def main():
         device=device,
     )
     agent.bc_lambda = args.bc_lambda  # BC preservation coefficient
+    agent.atgp_lambda = args.atgp_lambda  # ATGP preservation coefficient
+    agent.atgp_tau = args.atgp_tau        # ATGP confidence threshold
 
     # 4.5 Load warm-started Actor weights if provided (Experiment 4A)
     ref_actor = None
@@ -132,16 +141,18 @@ def main():
         print(f"    Authoritative Macro F1 (eval_warmstart.py): 0.7438")
         print(f"    Method: {warmstart_ckpt.get('method', 'unknown')}")
 
-        # Build a frozen reference Actor for the KL constraint (Exp 4A-1)
-        # This prevents PPO from drifting too far from the supervised warm-start.
-        if args.kl_beta > 0.0:
+        # Build a frozen reference Actor for KL / ATGP constraints
+        if args.kl_beta > 0.0 or args.atgp_lambda > 0.0:
             from src.ppo.networks import ActorNetwork
             ref_actor = ActorNetwork(state_dim=768, action_dim=20).to(device)
             ref_actor.load_state_dict(warmstart_ckpt["actor_state_dict"])
             ref_actor.eval()
             for p in ref_actor.parameters():
                 p.requires_grad = False
-            print(f"    KL reference policy loaded (beta={args.kl_beta})")
+            if args.kl_beta > 0.0:
+                print(f"    KL reference policy loaded (beta={args.kl_beta})")
+            if args.atgp_lambda > 0.0:
+                print(f"    ATGP reference policy loaded (lambda={args.atgp_lambda}, tau={args.atgp_tau})")
 
     # 5. Initialize Trainer
     trainer = PPOTrainer(

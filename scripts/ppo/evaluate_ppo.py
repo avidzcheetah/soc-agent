@@ -32,6 +32,7 @@ def main():
     parser.add_argument("--test_data", type=str, default="data/processed/test.csv", help="Path to test CSV")
     parser.add_argument("--model_path", type=str, default="models/secbert_finetuned", help="Path to SecBERT")
     parser.add_argument("--checkpoint_path", type=str, default="models/ppo_final/best_ppo_policy.pt", help="Path to PPO checkpoint")
+    parser.add_argument("--output_file", type=str, default="results/final_evaluation_exp4d_atgp.txt", help="Path to save evaluation results")
     args = parser.parse_args()
 
     print("=" * 70)
@@ -112,8 +113,8 @@ def main():
     print(cm)
     
     # Save results to file
-    os.makedirs("results", exist_ok=True)
-    with open("results/final_evaluation.txt", "w") as f:
+    os.makedirs(os.path.dirname(args.output_file) or ".", exist_ok=True)
+    with open(args.output_file, "w") as f:
         f.write(f"Test Samples: {test_size}\n")
         f.write(f"Accuracy:     {acc:.4f}\n")
         f.write(f"Macro F1:     {macro_f1:.4f}\n")
@@ -124,7 +125,7 @@ def main():
         f.write("\nConfusion Matrix:\n")
         f.write(str(cm))
         
-    print("\n[*] Full results saved to results/final_evaluation.txt")
+    print(f"\n[*] Full results saved to {args.output_file}")
     print("======================================================================")
 
 if __name__ == "__main__":

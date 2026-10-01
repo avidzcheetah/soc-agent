@@ -86,6 +86,8 @@ class PPOAgent:
         self.k_epochs = k_epochs
         self.batch_size = batch_size
         self.bc_lambda = 0.0  # set via agent.bc_lambda after init
+        self.atgp_lambda = 0.0  # Adaptive Teacher-Guided Preservation coefficient
+        self.atgp_tau = 0.3     # Teacher confidence threshold for ATGP gate
 
     def select_action(
         self,
@@ -256,6 +258,7 @@ class PPOAgent:
         total_entropy = 0.0
         total_kl_penalty = 0.0
         total_bc_loss = 0.0
+        total_atgp_loss = 0.0
         num_updates = 0
 
         # Ground truth labels for BC loss (stored alongside states in memory)
@@ -329,6 +332,29 @@ class PPOAgent:
                         actor_loss = actor_loss + self.bc_lambda * bc_loss
                         total_bc_loss += bc_loss.item()
 
+                # ATGP (Adaptive Teacher-Guided Preservation) loss:
+                # Per-sample, confidence-gated KL divergence against the frozen
+                # teacher policy. Selectively constrains the actor only where the
+                # teacher is confident AND the actor has diverged, preventing
+                # policy collapse on minority classes without globally freezing
+                # the policy.
+                if ref_actor is not None and self.atgp_lambda > 0.0:
+                    with torch.no_grad():
+                        ref_logits_atgp = ref_actor(b_states)
+                        ref_probs_atgp = F.softmax(ref_logits_atgp, dim=-1)
+                        # Teacher confidence: max probability per sample [batch_size]
+                        teacher_confidence, _ = ref_probs_atgp.max(dim=-1)
+                        # Soft linear gate: 0 below tau, ramps to 1 at confidence=1
+                        gate = ((teacher_confidence - self.atgp_tau) / (1.0 - self.atgp_tau)).clamp(0, 1)
+
+                    current_log_probs_atgp = F.log_softmax(new_logits, dim=-1)  # [batch_size, 20]
+                    # Per-sample forward KL: sum over actions → [batch_size]
+                    per_sample_kl = (ref_probs_atgp * (ref_probs_atgp.log() - current_log_probs_atgp)).sum(dim=-1)
+                    # Gated, batch-averaged ATGP loss
+                    atgp_loss = (gate * per_sample_kl).mean()
+                    actor_loss = actor_loss + self.atgp_lambda * atgp_loss
+                    total_atgp_loss += atgp_loss.item()
+
                 self.actor_optimizer.zero_grad()
                 actor_loss.backward()
                 nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
@@ -368,6 +394,7 @@ class PPOAgent:
             "entropy": total_entropy / num_updates if num_updates > 0 else 0.0,
             "kl_penalty": total_kl_penalty / num_updates if num_updates > 0 else 0.0,
             "bc_loss": total_bc_loss / num_updates if num_updates > 0 else 0.0,
+            "atgp_loss": total_atgp_loss / num_updates if num_updates > 0 else 0.0,
         }
 
 

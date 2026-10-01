@@ -299,6 +299,11 @@ class PPOTrainer:
             print(f"  Device: {self.agent.device}")
             print(f"  KL Beta (ref policy): {self.kl_beta}")
             print(f"  BC Lambda (supervised preservation): {getattr(self.agent, 'bc_lambda', 0.0)}")
+            atgp_lam = getattr(self.agent, 'atgp_lambda', 0.0)
+            atgp_tau = getattr(self.agent, 'atgp_tau', 0.3)
+            if atgp_lam > 0.0:
+                print(f"  ATGP Lambda (teacher preservation): {atgp_lam}")
+                print(f"  ATGP Tau (confidence threshold):    {atgp_tau}")
             print("=" * 70)
 
         # Reset environment before training starts
