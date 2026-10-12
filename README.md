@@ -64,19 +64,22 @@ The system operates in two core phases:
 
 ```directory
 soc-agent/
+├── caldera/                  # MITRE Caldera adversary emulation container & profiles
+├── configs/                  # Pipeline, model, and training configurations
 ├── data/
 │   ├── raw/                  # Raw datasets (CISSM, rcATT, CISA playbooks)
-│   │   ├── cissm_cyber_events.csv
-│   │   └── rcATT/            # rcATT threat intelligence reports
 │   ├── processed/            # Cleaned data for model training
-│   │   ├── cissm_processed.csv
-│   │   └── rcatt_processed.csv
 │   └── action_space.csv      # Canonical 20-action space definitions
-├── logs/                     # TensorBoard and execution log files
+├── docs/                     # Research analysis, notes, and architecture plans
 ├── models/                   # Saved fine-tuned SecBERT and trained PPO models
-├── results/                  # Evaluation statistics, charts, and metrics
-├── preprocess_cissm.py       # Preprocesses raw CISSM data into tokenizable formats
-├── preprocess_rcatt.py       # Preprocesses rcATT threat reports with ATT&CK mapping
+├── results/                  # Evaluation statistics, confusion matrices, and metrics
+├── scripts/                  # Automation, training, and operational scripts
+│   ├── ppo/                  # PPO training, distillation, and diagnostic scripts
+│   ├── secbert/              # SecBERT preprocessing and training scripts
+│   ├── start_soc_env.sh      # Start & verify SOC simulation infrastructure
+│   └── stop_soc_env.sh       # Graceful shutdown of simulation infrastructure
+├── src/                      # Source modules (encoder, environment, ppo, secbert)
+├── wazuh-docker/             # Wazuh SIEM single-node Docker deployment
 ├── requirements.txt          # Python dependencies
 └── README.md                 # Project documentation
 ```
@@ -182,6 +185,18 @@ python scripts/evaluate_baseline.py
 python scripts/ppo/evaluate_ppo.py
 ```
 
+### 5. SOC Simulation Environment (`soc_env`)
+
+To start and verify the complete operational testbed (Wazuh SIEM cluster, host Wazuh Agent, OSQuery daemon, and MITRE Caldera adversary server):
+```bash
+./scripts/start_soc_env.sh
+```
+
+To gracefully halt the simulation containers while fully preserving all volumes, state, and container data:
+```bash
+./scripts/stop_soc_env.sh
+```
+
 ---
 
 ## Action Space & Policy Design
@@ -250,23 +265,31 @@ escalate_to_human    ●      ●      ●       ●       ●       ●      �
 
 ---
 
-## Development Roadmap & Next Steps
+## Development Roadmap & Current Progress
 
-### Phase 1: Representation Learning (Completed)
+### 1. Representation Learning (Completed)
 - [x] Set up repository, environments, and basic workspace.
 - [x] Implement preprocessing for the CISSM Dataset (`scripts/secbert/preprocess_cissm.py`).
 - [x] Define 20-action discrete action space from CISA Playbooks + MITRE CAR.
 - [x] Preprocess the rcATT threat intelligence dataset (`scripts/secbert/preprocess_rcatt.py`).
 - [x] Implement SecBERT fine-tuning script (`scripts/secbert/train_secbert.py`).
 
-### Phase 2: Deep Reinforcement Learning (Completed)
+### 2. Deep Reinforcement Learning (Completed)
 - [x] Build custom Gymnasium RL environment (`src/environment.py`).
 - [x] Implement SecBERT State Encoder (`src/encoder.py`).
 - [x] Implement and train the PPO RL Agent (`scripts/ppo/train.py`).
 - [x] Develop Evaluation Pipeline (`scripts/evaluate_baseline.py`, `scripts/ppo/evaluate_ppo.py`).
+- [x] Behavioral Cloning Warm-Start distillation (`scripts/ppo/warmstart_actor.py`).
+- [x] Capped class-balanced experience sampling and conservative optimization (Exp 4C series).
+- [x] Implement Adaptive Teacher-Guided Preservation (ATGP) loss (`src/ppo/agent.py`).
+- [x] Evaluate champion policy on untouched test set (Exp 4D ATGP: 94.74% Acc, 0.7164 Macro F1, +0.9378 MCC).
 
-### Phase 3: Integration (Pending)
-- [ ] Configure Wazuh, Caldera, and OSQuery simulation setups.
-- [ ] Connect the agent to the Ubuntu SOC Lab for live telemetry and response automation.
-- [ ] Run integrated evaluation and generate performance reports.
+### 3. Operational SOC Simulation Environment — `soc_env` (In Progress)
+- [x] Deploy and configure Wazuh SIEM stack (Manager 4.14, Indexer 4.14, Dashboard 4.14 via `wazuh-docker/single-node`).
+- [x] Configure host endpoint telemetry (`wazuh-agent` and `osqueryd` 5.23 with BPF socket event filtering).
+- [x] Deploy MITRE Caldera adversary emulation container (`caldera` / `my-caldera:latest`).
+- [x] Implement and verify environment lifecycle automation scripts (`scripts/start_soc_env.sh`, `scripts/stop_soc_env.sh`).
+- [ ] Implement live telemetry ingestion and structured incident representation pipeline.
+- [ ] Connect PPO+ATGP champion policy to real-time response execution middleware.
+- [ ] Execute automated Caldera attack scenarios and evaluate operational metrics (MTTC, containment rate).
 

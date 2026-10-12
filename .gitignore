@@ -7,3 +7,8 @@ logs/
 models/*
 !models/README.md
 results/
+
+# Testbed containers and installers
+wazuh-docker/
+caldera/
+*.deb

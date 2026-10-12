@@ -1,17 +1,17 @@
-# Phase 3: Operational SOC Simulation Environment (Integration Plan)
+# Operational SOC Simulation Environment (`soc_env`) Integration Plan
 
-This document outlines the high-level roadmap for transitioning the autonomous Security Operations Center (SOC) incident response system from an **offline contextual-bandit system** (Phase 1 & 2) to an **operational SOC simulation environment** (Phase 3).
-
-> **Note:** This is a rough structural plan. Exact architectures, actions, reward formulas, scenarios, and infrastructure choices will be determined based on practical evaluations of the existing project and hardware constraints.
+This document outlines the architecture and execution roadmap for transitioning the autonomous Security Operations Center (SOC) incident response system from an **offline contextual-bandit system** to an **operational SOC simulation environment (`soc_env`)**.
 
 ---
 
-## 1. SOC Infrastructure Setup
-The foundational step is establishing an isolated, controllable lab environment to generate and monitor cyber incidents.
-*   **Isolated Lab:** Set up the core network/endpoint environment for the simulation.
-*   **Wazuh SIEM:** Deploy and configure Wazuh as the central aggregation point for security events.
-*   **Telemetry Sources:** Deploy necessary endpoint and network monitoring tools (e.g., OSQuery, Zeek) to feed data to Wazuh.
-*   **Adversary Simulation:** Install and configure **MITRE Caldera** to act as the automated adversary, executing controlled and repeatable attack behaviors.
+## 1. SOC Infrastructure Setup (Completed & Operational)
+The foundational infrastructure has been successfully provisioned, configured, and verified:
+*   **Wazuh SIEM Cluster:** Single-node cluster (`wazuh.manager`, `wazuh.indexer`, `wazuh.dashboard`) deployed via `wazuh-docker/single-node/` and actively processing events.
+*   **Host Endpoint Telemetry:** `wazuh-agent` (4.14.8-1, Agent 001) and `osqueryd` (5.23.1 with BPF process and socket event filtering) active as systemd daemons on the host OS.
+*   **Adversary Simulation:** **MITRE Caldera** deployed via Docker container (`caldera` / `my-caldera:latest`) on port 8888 with automated API execution capabilities.
+*   **Lifecycle Management:** Managed via robust automation scripts:
+    *   `scripts/start_soc_env.sh` (full healthcheck and 7/7 verification)
+    *   `scripts/stop_soc_env.sh` (graceful container shutdown preserving all persistent data)
 
 ## 2. Telemetry and Alert Pipeline
 Ensure a reliable flow of data from the simulated attacks to the agent.
@@ -53,7 +53,7 @@ Conduct comparative testing under identical live-simulation conditions to measur
     3.  PPO + ATGP (Adaptive Teacher-Guided Preservation)
 *   **Evaluation Shift:** Move away from offline classification metrics (Macro F1, Accuracy) and focus on measuring practical operational performance.
 
-## 8. Final Phase 3 Analysis
+## 8. Operational Simulation Analysis & Thesis Synthesis
 Synthesize the results to determine the true value of the RL interventions.
 *   **Data Collection:** Record the actual sequence of actions, time-to-containment, and final outcomes of each response scenario.
 *   **Metric Calculation:** Compute operational metrics that the implemented environment can reliably support (e.g., success rate, false disruption rate).

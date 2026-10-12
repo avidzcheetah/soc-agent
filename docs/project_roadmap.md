@@ -96,7 +96,22 @@ This document tracks the overall progress of the Autonomous SOC Agent project ac
 
   *† Macro F1 difference vs 4C-5 on validation is due to single N=1 class (snapshot_forensics) changing prediction. Excluding it, 4D avg F1 across 17 classes is 0.7925 vs 4C-5's 0.7804.*
 
-## Phase 3: Integration (Pending)
-- [ ] Configure Wazuh, Caldera, and OSQuery simulation setups.
-- [ ] Connect the agent to the Ubuntu SOC Lab for live telemetry and response automation.
-- [ ] Run integrated evaluation and generate performance reports.
+## Operational SOC Simulation Environment — `soc_env` (In Progress)
+- [x] **Step 20: SIEM & Adversary Container Infrastructure**
+  - [x] Deploy Wazuh single-node cluster (`wazuh.manager`, `wazuh.indexer`, `wazuh.dashboard`) via `wazuh-docker/single-node`.
+  - [x] Deploy MITRE Caldera adversary server (`caldera` / `my-caldera:latest`) on port 8888.
+- [x] **Step 21: Endpoint Telemetry Configuration**
+  - [x] Deploy `wazuh-agent` on host (`meow`, Agent ID 001) connected and active with Wazuh Manager.
+  - [x] Configure `osqueryd` 5.23.1 with BPF process and socket event filtering (`bpf_socket_events WHERE family IN (2, 10)`).
+- [x] **Step 22: Testbed Lifecycle Automation & Verification**
+  - [x] Create and verify `scripts/start_soc_env.sh` (7/7 PASS verification).
+  - [x] Create and verify `scripts/stop_soc_env.sh` (graceful container shutdown preserving volumes).
+- [ ] **Step 23: Telemetry & Alert Ingestion Pipeline**
+  - [ ] Ingest Wazuh alerts via REST API / alerts.json log stream.
+  - [ ] Standardize raw alerts into structured incident schema compatible with SecBERT.
+- [ ] **Step 24: Agent Middleware & Action Execution Interface**
+  - [ ] Deploy frozen SecBERT encoder and champion PPO+ATGP policy in live inference mode.
+  - [ ] Implement response action executors for the 20 actions (firewall rules, process termination, persistence cleanup).
+- [ ] **Step 25: Adversary Scenarios & Operational Evaluation**
+  - [ ] Execute automated MITRE Caldera adversary profiles.
+  - [ ] Benchmark SecBERT baseline vs Standard PPO vs PPO+ATGP on operational metrics (MTTC, containment success rate).
