@@ -6,7 +6,12 @@ experiments/
 logs/
 models/*
 !models/README.md
-results/
+results/*
+!results/soc_env/
+results/soc_env/**/*.json
+!results/soc_env/**/*.md
+!results/*.md
+!results/class_distribution.png
 
 # Testbed containers and installers
 wazuh-docker/

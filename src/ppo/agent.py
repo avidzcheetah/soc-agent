@@ -218,7 +218,13 @@ class PPOAgent:
 
         return advantages_tensor, returns_tensor
 
-    def update(self, memory: PPOMemory, ref_actor=None, kl_beta: float = 0.0) -> Dict[str, float]:
+    def update(
+        self,
+        memory: PPOMemory,
+        ref_actor=None,
+        kl_beta: float = 0.0,
+        next_value: float = 0.0,
+    ) -> Dict[str, float]:
         """
         Execute one PPO optimization cycle over the collected trajectory in memory.
 
@@ -228,6 +234,7 @@ class PPOAgent:
                        KL(ref || current) penalty is added to the actor loss to prevent
                        catastrophic forgetting of the supervised warm-start knowledge.
             kl_beta: Coefficient for the KL penalty term. 0.0 disables it.
+            next_value: Value estimate for non-terminal state following the rollout cutoff.
 
         Returns:
             Dict[str, float]: Training metrics/losses dictionary.
@@ -236,7 +243,7 @@ class PPOAgent:
             return {}
 
         # 1. Compute GAE advantages and target returns
-        advantages, returns = self.compute_gae(memory)
+        advantages, returns = self.compute_gae(memory, next_value=next_value)
 
         # 2. Convert trajectory lists into tensors on target device
         states_list = [
