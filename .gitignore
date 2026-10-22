@@ -17,3 +17,14 @@ results/soc_env/**/*.json
 wazuh-docker/
 caldera/
 *.deb
+
+# Web dashboard and frontend artifacts
+node_modules/
+.next/
+out/
+build/
+.env*.local
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

@@ -60,6 +60,15 @@ The system operates in two core phases:
 
 ---
 
+## Web Dashboard & SOC Simulation Control Panel
+
+An interactive research web application and simulation control panel is located in the [`web/`](web/) directory:
+* **Interactive Next.js 14 Frontend:** Live 8-stage architecture flow, incident investigation timeline, multi-stage attack scenarios, and PPO vs. PPO+ATGP comparison suite.
+* **FastAPI Backend:** Real-time Server-Sent Events (SSE) streaming, Gymnasium sequential environment integration, and benchmark dataset replay.
+* **Documentation & Launch Instructions:** See [web/README.md](web/README.md).
+
+---
+
 ## Research Results & Benchmark Leaderboard
 
 ### Primary Benchmark Results (Untouched 1,539-Sample Test Set)
