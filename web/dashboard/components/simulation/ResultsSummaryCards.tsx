@@ -1,15 +1,7 @@
 "use client";
 
 import React from "react";
-import {
-  Award,
-  Hash,
-  Activity,
-  ShieldCheck,
-  Timer,
-  AlertCircle,
-  CheckCircle2,
-} from "lucide-react";
+import { Download } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { SimulationResults } from "@/types";
 
@@ -21,124 +13,125 @@ interface Props {
 export function ResultsSummaryCards({ results = null, isRunning = false }: Props) {
   const isCompleted = results !== null;
 
-  const resultCards = [
-    {
-      label: "Simulation Outcome",
-      value: isRunning
-        ? "Replaying..."
-        : isCompleted
-        ? results.status === "completed"
-          ? "Historical Replay Complete"
-          : "Replay Stopped"
-        : "Not Evaluated",
-      desc: isCompleted
-        ? `Action Match: ${(results.accuracy * 100).toFixed(1)}%`
-        : "Status after episode termination",
-      icon: Award,
-      highlight: isCompleted && results.status === "completed",
-    },
-    {
-      label: "Total Steps",
-      value: isCompleted ? `${results.total_steps}` : "—",
-      desc: isCompleted
-        ? `${results.correct_steps} matching ground-truth`
-        : "Environment interaction steps",
-      icon: Hash,
-      highlight: false,
-    },
-    {
-      label: "Cumulative Return",
-      value: isCompleted
-        ? results.cumulative_reward > 0
-          ? `+${results.cumulative_reward}`
-          : `${results.cumulative_reward}`
-        : "—",
-      desc: isCompleted
-        ? `Mean reward: ${results.mean_reward}`
-        : "Sum of episode feedback (Σ r_t)",
-      icon: Activity,
-      highlight: isCompleted && results.cumulative_reward > 0,
-    },
-    {
-      label: "Containment Outcome",
-      value: isCompleted
-        ? results.containment_outcome || "Not Available"
-        : "—",
-      desc: isCompleted
-        ? "Bandit evaluates per-incident actions, not host containment"
-        : "Threat mitigation effectiveness",
-      icon: ShieldCheck,
-      highlight: false,
-    },
-    {
-      label: "Execution Duration",
-      value: isCompleted
-        ? `${results.execution_duration_sec}s`
-        : isRunning
-        ? "Active"
-        : "—",
-      desc: isCompleted
-        ? `Paced SSE stream elapsed time`
-        : "Inference & step elapsed time",
-      icon: Timer,
-      highlight: false,
-    },
-  ];
+  const handleExportJSON = () => {
+    if (!results) return;
+    const blob = new Blob([JSON.stringify(results, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `simulation-result-${results.run_id || "run"}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const outcome = isRunning
+    ? "Running"
+    : isCompleted
+    ? results.status === "completed"
+      ? "Completed"
+      : "Stopped"
+    : "Standby";
+
+  const steps = isCompleted ? `${results.total_steps}` : isRunning ? "In progress" : "—";
+
+  const reward = isCompleted
+    ? results.cumulative_reward > 0
+      ? `+${results.cumulative_reward.toFixed(1)}`
+      : `${results.cumulative_reward.toFixed(1)}`
+    : "—";
+
+  const duration = isCompleted
+    ? `${results.execution_duration_sec || 0}s`
+    : isRunning
+    ? "Active"
+    : "—";
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-          <Award className="h-3.5 w-3.5 text-teal-400" />
-          <span>Simulation Results Summary</span>
+    <Card className="p-4 border-slate-200 bg-white shadow-sm space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+        <h2 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+          Current Simulation Results
         </h2>
-        {isCompleted ? (
-          <span className="text-[11px] text-emerald-400 font-mono flex items-center gap-1">
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-            <span>Evaluation Metrics Verified (Run: {results.run_id})</span>
-          </span>
-        ) : (
-          <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
-            <AlertCircle className="h-3 w-3 text-slate-400" />
-            <span>Results will update upon simulation completion</span>
+        {isCompleted && (
+          <span className="text-[11px] font-mono text-slate-500">
+            Run: {results.run_id}
           </span>
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {resultCards.map((c) => {
-          const Icon = c.icon;
-          return (
-            <Card
-              key={c.label}
-              className={`p-3.5 border-slate-800/80 bg-slate-900/60 flex flex-col justify-between transition-colors ${
-                c.highlight ? "border-teal-500/40 bg-teal-500/5" : ""
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                  {c.label}
-                </span>
-                <Icon
-                  className={`h-3.5 w-3.5 ${
-                    c.highlight ? "text-teal-400" : "text-slate-400"
-                  }`}
-                />
-              </div>
-              <div className="my-2">
-                <p
-                  className={`text-base font-bold font-mono ${
-                    c.highlight ? "text-teal-300" : "text-slate-100"
-                  }`}
-                >
-                  {c.value}
-                </p>
-              </div>
-              <p className="text-[10px] text-slate-400 leading-tight">{c.desc}</p>
-            </Card>
-          );
-        })}
+      {/* 5 Compact Metrics: Outcome | Completed Steps | Cumulative Reward | Duration | Export */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-center">
+        {/* Outcome */}
+        <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-0.5">
+            Outcome
+          </span>
+          <p
+            className={`text-sm font-bold font-mono ${
+              isCompleted && results.status === "completed"
+                ? "text-emerald-700"
+                : "text-slate-900"
+            }`}
+          >
+            {outcome}
+          </p>
+        </div>
+
+        {/* Completed Steps */}
+        <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-0.5">
+            Completed Steps
+          </span>
+          <p className="text-sm font-bold font-mono text-slate-900">{steps}</p>
+        </div>
+
+        {/* Cumulative Reward */}
+        <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-0.5">
+            Cumulative Reward
+          </span>
+          <p
+            className={`text-sm font-bold font-mono ${
+              isCompleted && results.cumulative_reward > 0
+                ? "text-emerald-700"
+                : "text-slate-900"
+            }`}
+          >
+            {reward}
+          </p>
+        </div>
+
+        {/* Duration */}
+        <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-0.5">
+            Duration
+          </span>
+          <p className="text-sm font-bold font-mono text-slate-900">{duration}</p>
+        </div>
+
+        {/* Export Control */}
+        <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200 flex flex-col justify-between">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-0.5">
+            Export Results
+          </span>
+          <button
+            type="button"
+            onClick={handleExportJSON}
+            disabled={!isCompleted}
+            className={`w-full py-1 px-2 rounded text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
+              isCompleted
+                ? "bg-teal-600 hover:bg-teal-700 text-white shadow-sm cursor-pointer"
+                : "bg-slate-200 text-slate-400 cursor-not-allowed"
+            }`}
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Export JSON</span>
+          </button>
+        </div>
       </div>
-    </div>
+    </Card>
   );
 }

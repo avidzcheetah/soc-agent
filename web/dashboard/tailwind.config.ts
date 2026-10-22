@@ -9,20 +9,21 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#080d1a", // Deep navy background
-        card: "#0d1527",       // Slate navy panel
-        "card-hover": "#131e36",
-        border: "#1e293b",     // Subtle slate border
-        "border-subtle": "#162033",
+        background: "#f8fafc", // Clean light slate background
+        card: "#ffffff",       // Pure white card
+        "card-hover": "#f1f5f9",
+        border: "#e2e8f0",     // Clean light border
+        "border-subtle": "#f1f5f9",
         teal: {
           400: "#2dd4bf",
-          500: "#14b8a6",
-          600: "#0d9488",
+          500: "#0d9488",
+          600: "#0f766e",
+          700: "#115e59",
         },
         navy: {
-          800: "#0f172a",
-          900: "#080d1a",
-          950: "#040711",
+          800: "#1e293b",
+          900: "#0f172a",
+          950: "#020617",
         }
       },
     },

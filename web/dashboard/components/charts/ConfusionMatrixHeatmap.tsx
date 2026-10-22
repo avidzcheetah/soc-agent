@@ -75,7 +75,7 @@ export function ConfusionMatrixHeatmap({ data }: Props) {
                   {/* Row Label (True Label) */}
                   <div
                     title={trueLabel}
-                    className="w-28 shrink-0 text-right pr-3 text-xs font-mono text-slate-300 truncate font-medium"
+                    className="w-28 shrink-0 text-right pr-3 text-xs font-mono text-slate-700 truncate font-medium"
                   >
                     {trueLabel}
                   </div>
@@ -103,17 +103,17 @@ export function ConfusionMatrixHeatmap({ data }: Props) {
                           "w-16 h-10 shrink-0 m-0.5 flex items-center justify-center rounded text-xs font-mono font-medium transition-transform hover:scale-105 cursor-pointer border",
                           isDiagonal
                             ? val > 0
-                              ? "bg-teal-500/25 border-teal-500/40 text-teal-200"
-                              : "bg-slate-900 border-slate-800 text-slate-400"
+                              ? "bg-teal-50 border-teal-300 text-teal-900 font-bold"
+                              : "bg-slate-50 border-slate-200 text-slate-400"
                             : val > 0
-                            ? "bg-rose-500/15 border-rose-500/30 text-rose-300"
-                            : "bg-slate-900/50 border-slate-800/60 text-slate-400"
+                            ? "bg-rose-50 border-rose-300 text-rose-800 font-bold"
+                            : "bg-slate-50/60 border-slate-200 text-slate-400"
                         )}
                         style={{
                           backgroundColor: isDiagonal
-                            ? `rgba(20, 184, 166, ${Math.max(0.12, ratio * 0.75)})`
+                            ? `rgba(20, 184, 166, ${Math.max(0.12, ratio * 0.4)})`
                             : val > 0
-                            ? `rgba(244, 63, 94, ${Math.max(0.15, ratio * 0.6)})`
+                            ? `rgba(244, 63, 94, ${Math.max(0.12, ratio * 0.4)})`
                             : undefined,
                         }}
                       >
@@ -128,14 +128,14 @@ export function ConfusionMatrixHeatmap({ data }: Props) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
+      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded bg-teal-500/40 border border-teal-500/60" />
+            <span className="h-3 w-3 rounded bg-teal-500/20 border border-teal-500/40" />
             <span>Correct Classification (Diagonal)</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded bg-rose-500/30 border border-rose-500/50" />
+            <span className="h-3 w-3 rounded bg-rose-500/20 border border-rose-500/40" />
             <span>Misclassification Error (Off-Diagonal)</span>
           </div>
         </div>

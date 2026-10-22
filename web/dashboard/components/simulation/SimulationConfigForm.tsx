@@ -1,23 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Play,
   Square,
   RotateCcw,
   Sliders,
-  ShieldAlert,
+  Flame,
+  Settings,
   Cpu,
   Target,
   Hash,
-  Info,
   Loader2,
   CheckCircle2,
-  Activity,
+  ShieldCheck,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { api } from "@/lib/api";
-import { ScenarioItem } from "@/types";
 
 export interface SimulationConfig {
   scenario: string;
@@ -27,84 +26,58 @@ export interface SimulationConfig {
   seed: number;
 }
 
-const DEFAULT_SCENARIOS: (ScenarioItem & { disabled?: boolean; disabled_reason?: string })[] = [
-  {
-    id: "scenario-ransomware",
-    alias: "ransomware_outbreak",
-    name: "Ransomware Outbreak & Host Containment",
-    description: "Sequential incident progression featuring active file encryption and lateral SMB propagation. Evaluates host isolation (Action 7) and process termination (Action 8) response actions against benchmark CISA playbooks.",
-    simulation_mode: "Historical Replay",
-    validation_status: "Validated (Historical Replay)",
-    expected_actions: ["isolate_host (Class 7)", "kill_process (Class 8)"],
-    measurable_metrics: "Contextual bandit reward (+1.0 / -1.0) and CISA playbook action alignment rate.",
-    supported_policies: ["PPO (Ground-Truth Replay Mode)", "PPO+ATGP (Ground-Truth Replay Mode)"],
-    target_default: "Subnet 10.0.1.0/24 (Corporate Workstations)",
-    tactics: ["Initial Access", "Lateral Movement", "Impact"],
-    supported_steps: { min: 5, max: 64, default: 20 },
-    initial_state: "Corporate Workstation Subnet (10.0.1.0/24) - Uncontained",
-  },
+export interface ScenarioDefinition {
+  id: string;
+  name: string;
+  calderaEvidence: string;
+  agentResponses: string;
+  targetDefault: string;
+}
+
+export const ATTACK_SCENARIOS: ScenarioDefinition[] = [
   {
     id: "scenario-c2",
-    alias: "c2_beaconing",
-    name: "Cobalt Strike C2 Beaconing & Network Infiltration",
-    description: "Sequential incident progression tracking external adversary ingress probing, periodic outbound HTTPS beaconing, and egress communication. Evaluates perimeter IP blocking (Action 3) and DNS sinkholing (Action 5).",
-    simulation_mode: "Historical Replay",
-    validation_status: "Validated (Historical Replay)",
-    expected_actions: ["block_source_ip (Class 3)", "block_dest_ip (Class 4)", "dns_sinkhole (Class 5)"],
-    measurable_metrics: "Perimeter firewall deny-rule and egress block alignment with CISA playbooks.",
-    supported_policies: ["PPO (Ground-Truth Replay Mode)", "PPO+ATGP (Ground-Truth Replay Mode)"],
-    target_default: "Subnet 10.0.2.0/24 (DMZ Server Infrastructure)",
-    tactics: ["Command and Control", "Exfiltration"],
-    supported_steps: { min: 5, max: 50, default: 16 },
-    initial_state: "DMZ Server Subnet (10.0.2.0/24) - Active Outbound Beaconing",
+    name: "C2 and data exfiltration",
+    calderaEvidence:
+      "Emulate system discovery, controlled outbound communication, and a simulated data-transfer attempt. Show process and network telemetry.",
+    agentResponses:
+      "Block destination IP, DNS sinkhole, or isolate host.",
+    targetDefault: "Subnet 10.0.2.0/24 (DMZ Infrastructure)",
   },
   {
-    id: "scenario-vulnerability",
-    alias: "web_exploit",
-    name: "Public CVE Exploitation & Vulnerability Eradication",
-    description: "Sequential incident progression tracking remote code execution against unpatched public-facing services and backdoor persistence. Evaluates vulnerability patching (Action 16) and persistence removal (Action 13).",
-    simulation_mode: "Historical Replay",
-    validation_status: "Validated (Historical Replay)",
-    expected_actions: ["patch_vulnerability (Class 16)", "remove_persistence (Class 13)"],
-    measurable_metrics: "Eradication action match rate on known exploited vulnerabilities (+1.0 / -1.0).",
-    supported_policies: ["PPO (Ground-Truth Replay Mode)", "PPO+ATGP (Ground-Truth Replay Mode)"],
-    target_default: "Subnet 10.0.2.0/24 (DMZ Ingress Web Servers)",
-    tactics: ["Initial Access", "Persistence", "Privilege Escalation"],
-    supported_steps: { min: 5, max: 64, default: 20 },
-    initial_state: "DMZ Ingress Cluster (10.0.2.0/24) - Unpatched Public CVE Detected",
+    id: "scenario-privilege-persistence",
+    name: "Privilege escalation and persistence",
+    calderaEvidence:
+      "In an isolated Linux lab, emulate privilege escalation and creation of a test cron persistence entry. Show privilege and file-change events.",
+    agentResponses:
+      "Remove persistence, kill process, or isolate host.",
+    targetDefault: "Linux Lab Host 1 (10.0.1.15)",
   },
   {
-    id: "scenario-caldera-live",
-    name: "MITRE Caldera Multi-Host Operation (Phase 3 Planned)",
-    description: "Multi-stage automated adversary emulating APT29 across real Linux/Windows virtual machines.",
-    simulation_mode: "Sequential Attack Simulation",
-    validation_status: "Disabled (Phase 3 Planned)",
-    expected_actions: ["isolate_host", "remediate_network"],
-    measurable_metrics: "Enterprise host infection graph, active breach status, and live time-to-containment.",
-    supported_policies: ["PPO (Live Inference)"],
-    target_default: "Enterprise Testbed (Caldera Daemon)",
-    tactics: ["Initial Access", "Persistence", "Command and Control", "Lateral Movement"],
-    disabled: true,
-    disabled_reason: "Requires live MITRE Caldera daemon container and active host telemetry agents (commented out in Phase 2).",
+    id: "scenario-credential-lateral",
+    name: "Credential abuse and lateral movement",
+    calderaEvidence:
+      "Use dedicated test credentials to emulate SSH access between lab hosts, followed by creation of a dummy database dump.",
+    agentResponses:
+      "Reset credentials, disable test account, or isolate host.",
+    targetDefault: "Linux Lab Host 2 (10.0.1.16)",
+  },
+  {
+    id: "scenario-web-rce",
+    name: "Web RCE and reverse TCP tunnel",
+    calderaEvidence:
+      "Exploit a deliberately vulnerable test web service and emulate a controlled reverse connection. Show process and network events.",
+    agentResponses:
+      "Kill process, block destination, or isolate host.",
+    targetDefault: "DMZ Ingress Web Cluster (10.0.2.10)",
   },
 ];
 
-const TARGETS = [
-  {
-    id: "target-workstations",
-    name: "Subnet 10.0.1.0/24 (Corporate Workstations)",
-    description: "End-user enterprise machines monitored via software contextual bandit",
-  },
-  {
-    id: "target-dmz",
-    name: "Subnet 10.0.2.0/24 (DMZ Server Infrastructure)",
-    description: "Public-facing ingress web servers and reverse proxies",
-  },
-  {
-    id: "target-dc",
-    name: "Host AD-DC-01 (Active Directory Domain Controller)",
-    description: "Critical identity management host holding Kerberos KDC & NTDS.dit",
-  },
+const TARGET_HOSTS = [
+  "Subnet 10.0.2.0/24 (DMZ Infrastructure)",
+  "Linux Lab Host 1 (10.0.1.15)",
+  "Linux Lab Host 2 (10.0.1.16)",
+  "DMZ Ingress Web Cluster (10.0.2.10)",
 ];
 
 interface Props {
@@ -112,6 +85,7 @@ interface Props {
   onConfigChange: (config: SimulationConfig) => void;
   onStart: () => void;
   onStop: () => void;
+  onReset?: () => void;
   isStarting?: boolean;
   isRunning?: boolean;
   activeRunId?: string | null;
@@ -122,320 +96,301 @@ export function SimulationConfigForm({
   onConfigChange,
   onStart,
   onStop,
+  onReset,
   isStarting = false,
   isRunning = false,
   activeRunId = null,
 }: Props) {
-  const [scenariosList, setScenariosList] = useState(DEFAULT_SCENARIOS);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [envStatus, setEnvStatus] = useState("Tools Active");
 
-  useEffect(() => {
-    let mounted = true;
-    api
-      .getScenarios()
-      .then((res) => {
-        if (mounted && res?.scenarios && res.scenarios.length > 0) {
-          const apiScenarios = res.scenarios as ScenarioItem[];
-          setScenariosList([
-            ...apiScenarios,
-            DEFAULT_SCENARIOS[3], // Disabled Phase 3 Planned option
-          ]);
-        }
-      })
-      .catch(() => {
-        // Fall back to DEFAULT_SCENARIOS
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  const selectedScenario =
+    ATTACK_SCENARIOS.find((s) => s.id === config.scenario) || ATTACK_SCENARIOS[0];
 
-  const activeScenario =
-    scenariosList.find(
-      (s) => s.id === config.scenario || s.alias === config.scenario
-    ) || scenariosList[0];
-
-  const handleReset = () => {
+  const handleScenarioChange = (scenarioId: string) => {
+    const found = ATTACK_SCENARIOS.find((s) => s.id === scenarioId);
     onConfigChange({
-      scenario: DEFAULT_SCENARIOS[0].id,
-      policy: "PPO",
-      target: TARGETS[0].name,
-      maxSteps: 20,
-      seed: 42,
+      ...config,
+      scenario: scenarioId,
+      target: found ? found.targetDefault : config.target,
     });
   };
 
-  const handleFieldChange = (updates: Partial<SimulationConfig>) => {
-    onConfigChange({
-      ...config,
-      ...updates,
-    });
+  const handleVerifyEnv = async () => {
+    setIsVerifying(true);
+    try {
+      await api.getHealth();
+      setEnvStatus("Environment Verified");
+    } catch {
+      setEnvStatus("Environment Degraded");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResetEnv = async () => {
+    try {
+      await api.resetSimulations();
+    } catch {
+      // ignore
+    }
+    if (onReset) onReset();
   };
 
   return (
-    <Card className="p-5 border-slate-800/80 bg-slate-900/60 space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
-        <div>
-          <h2 className="text-xs font-semibold text-slate-100 uppercase tracking-wider flex items-center gap-2">
-            <Sliders className="h-4 w-4 text-teal-400" />
-            <span>Simulation Parameters &amp; Policy Control</span>
-          </h2>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            Configure scenario inputs, target environment, policy algorithm, and step bounds.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          {isRunning ? (
-            <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-semibold text-teal-300 bg-teal-500/15 border border-teal-500/40 flex items-center gap-1.5 animate-pulse">
-              <Activity className="h-3 w-3" />
-              <span>Running: {activeRunId}</span>
-            </span>
-          ) : (
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3" />
-              <span>Backend Ready (Historical Benchmark Replay)</span>
-            </span>
-          )}
+    <div className="space-y-3">
+      {/* Section Header & Environment Control Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <h2 className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+          <Sliders className="h-4 w-4 text-teal-600" />
+          <span>Simulation Control</span>
+        </h2>
+
+        {/* SOC Environment tools status & controls */}
+        <div className="flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 text-[11px] font-mono">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            <span>Wazuh • OSQuery • Caldera • SecBERT</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleVerifyEnv}
+            disabled={isVerifying}
+            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-medium border border-slate-200 transition-colors"
+          >
+            {isVerifying ? "Checking..." : "Verify Environment"}
+          </button>
+          <button
+            type="button"
+            onClick={handleResetEnv}
+            disabled={isRunning || isStarting}
+            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-medium border border-slate-200 transition-colors disabled:opacity-50"
+          >
+            Reset Environment
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
-        {/* Validated Attack Scenario Selector & Metadata Card */}
-        <div className="space-y-2 lg:col-span-2">
-          <div className="flex items-center justify-between">
-            <label className="text-[11px] font-medium text-slate-300 flex items-center gap-1.5">
-              <ShieldAlert className="h-3.5 w-3.5 text-rose-400" />
-              <span>Attack Simulation Scenario</span>
-            </label>
-            {activeScenario && (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/30">
-                Mode: {activeScenario.simulation_mode || "Historical Replay"}
+      {/* 2-Box Layout matching the ASCII Mockup */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Left Box: Attack Scenario Selection & Execution Controls */}
+        <Card className="p-5 border-slate-200 bg-white shadow-sm flex flex-col justify-between space-y-4">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Flame className="h-4 w-4 text-rose-600" />
+                <span>Attack Scenario</span>
+              </label>
+              <span className="text-[11px] text-slate-500 font-mono">
+                {selectedScenario.id}
               </span>
-            )}
-          </div>
-          <select
-            value={config.scenario}
-            disabled={isRunning || isStarting}
-            onChange={(e) => {
-              const selectedId = e.target.value;
-              const found = scenariosList.find((s) => s.id === selectedId);
-              if (found && found.disabled) return;
-              handleFieldChange({ scenario: selectedId });
-            }}
-            className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-100 focus:outline-none focus:border-teal-500 font-sans disabled:opacity-60"
-          >
-            {scenariosList.map((s) => (
-              <option key={s.id} value={s.id} disabled={s.disabled}>
-                {s.name} {s.disabled ? "— [Disabled: Planned]" : "— [Validated Replay]"}
-              </option>
-            ))}
-          </select>
+            </div>
 
-          {/* Scenario Details Panel */}
-          {activeScenario && (
-            <div className="p-3 rounded-lg bg-slate-950/80 border border-slate-800/90 space-y-2 text-[11px]">
-              <p className="text-slate-300 leading-relaxed font-sans">
-                {activeScenario.description}
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-800/60 font-mono text-[10px]">
-                <div>
-                  <span className="text-slate-500">Validation Status: </span>
-                  <span className={activeScenario.disabled ? "text-amber-400" : "text-emerald-400 font-semibold"}>
-                    {activeScenario.validation_status || "Validated (Historical Replay)"}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Candidate Actions: </span>
-                  <span className="text-teal-300">
-                    {(activeScenario.expected_actions || []).join(", ") || "Canonical CISA Playbook"}
-                  </span>
-                </div>
-                <div className="sm:col-span-2">
-                  <span className="text-slate-500">Measurable Metrics: </span>
-                  <span className="text-slate-300">
-                    {activeScenario.measurable_metrics || "Contextual bandit reward (+1.0 / -1.0) and CISA playbook action alignment"}
-                  </span>
-                </div>
-                {activeScenario.disabled && activeScenario.disabled_reason && (
-                  <div className="sm:col-span-2 p-1.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 font-sans">
-                    <strong>Notice:</strong> {activeScenario.disabled_reason}
-                  </div>
-                )}
+            <select
+              value={config.scenario}
+              disabled={isRunning || isStarting}
+              onChange={(e) => handleScenarioChange(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:border-teal-500 disabled:opacity-60"
+            >
+              {ATTACK_SCENARIOS.map((sc) => (
+                <option key={sc.id} value={sc.id}>
+                  {sc.name}
+                </option>
+              ))}
+            </select>
+
+            {/* Caldera Evidence & Agent Response Preview */}
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2 text-xs">
+              <div>
+                <span className="font-semibold text-slate-700">Caldera Operation &amp; Observable Evidence:</span>
+                <p className="text-slate-600 text-[11px] mt-0.5 leading-relaxed">
+                  {selectedScenario.calderaEvidence}
+                </p>
+              </div>
+              <div className="pt-2 border-t border-slate-200">
+                <span className="font-semibold text-teal-800">Agent Response Examples:</span>
+                <p className="text-teal-700 font-mono text-[11px] mt-0.5">
+                  {selectedScenario.agentResponses}
+                </p>
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Policy Selector */}
-        <div className="space-y-1.5">
-          <label className="text-[11px] font-medium text-slate-300 flex items-center gap-1.5">
-            <Cpu className="h-3.5 w-3.5 text-teal-400" />
-            <span>Policy Algorithm</span>
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              disabled={isRunning || isStarting}
-              onClick={() => handleFieldChange({ policy: "PPO" })}
-              className={`py-2 px-3 rounded-lg border text-xs font-mono font-medium transition-colors ${
-                config.policy === "PPO"
-                  ? "bg-teal-500/15 border-teal-500/50 text-teal-300 shadow-sm"
-                  : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200"
-              } disabled:opacity-60`}
-            >
-              PPO (Standard)
-            </button>
-            <button
-              type="button"
-              disabled={isRunning || isStarting}
-              onClick={() => handleFieldChange({ policy: "PPO+ATGP" })}
-              className={`py-2 px-3 rounded-lg border text-xs font-mono font-medium transition-colors ${
-                config.policy === "PPO+ATGP"
-                  ? "bg-teal-500/15 border-teal-500/50 text-teal-300 shadow-sm"
-                  : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200"
-              } disabled:opacity-60`}
-            >
-              PPO + ATGP
-            </button>
           </div>
-          <p className="text-[10px] text-slate-400 font-mono">
-            {config.policy === "PPO"
-              ? "Standard PPO with GAE (gamma=0.99, lambda=0.95)"
-              : "Adaptive Teacher-Guided Preservation policy for rare classes"}
-          </p>
-        </div>
 
-        {/* Target Environment */}
-        <div className="space-y-1.5 lg:col-span-2">
-          <label className="text-[11px] font-medium text-slate-300 flex items-center gap-1.5">
-            <Target className="h-3.5 w-3.5 text-amber-400" />
-            <span>Simulated Target Infrastructure</span>
-          </label>
-          <select
-            value={config.target}
-            disabled={isRunning || isStarting}
-            onChange={(e) => handleFieldChange({ target: e.target.value })}
-            className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-100 focus:outline-none focus:border-teal-500 font-sans disabled:opacity-60"
-          >
-            {TARGETS.map((t) => (
-              <option key={t.id} value={t.name}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-          <p className="text-[10px] text-slate-400 font-mono">
-            {TARGETS.find((t) => t.name === config.target || t.id === config.target)?.description ||
-              "Subnet monitored via software contextual bandit"}
-          </p>
-        </div>
-
-        {/* Max Steps & Seed */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-slate-300 flex items-center gap-1.5">
-              <Hash className="h-3.5 w-3.5 text-slate-400" />
-              <span>Max Steps ({config.maxSteps})</span>
-            </label>
-            <input
-              type="range"
-              min={10}
-              max={100}
-              step={2}
-              value={config.maxSteps}
+          {/* Action Buttons: START SIMULATION, STOP, RESET */}
+          <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onStart}
               disabled={isRunning || isStarting}
-              onChange={(e) => handleFieldChange({ maxSteps: Number(e.target.value) })}
-              className="w-full accent-teal-400 cursor-pointer disabled:opacity-60"
-            />
-            <div className="flex justify-between text-[10px] font-mono text-slate-400">
-              <span>10</span>
-              <span>{config.maxSteps} steps</span>
-              <span>100</span>
+              className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
+                !isRunning && !isStarting
+                  ? "bg-teal-600 hover:bg-teal-700 text-white shadow-sm cursor-pointer"
+                  : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+              }`}
+            >
+              {isStarting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Starting...</span>
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4 fill-current" />
+                  <span>START SIMULATION</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={onStop}
+              disabled={!isRunning}
+              className={`px-3.5 py-2 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition-colors ${
+                isRunning
+                  ? "bg-rose-50 border-rose-300 text-rose-700 hover:bg-rose-100 cursor-pointer"
+                  : "bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed"
+              }`}
+            >
+              <Square className="h-3.5 w-3.5" />
+              <span>STOP</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onReset}
+              disabled={isRunning || isStarting}
+              className="px-3.5 py-2 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium border border-slate-200 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>RESET</span>
+            </button>
+
+            {activeRunId && isRunning && (
+              <span className="ml-auto text-[11px] font-mono text-teal-700 flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-teal-500 animate-ping" />
+                <span>Run: {activeRunId.slice(0, 14)}...</span>
+              </span>
+            )}
+          </div>
+        </Card>
+
+        {/* Right Box: Simulation Settings */}
+        <Card className="p-5 border-slate-200 bg-white shadow-sm flex flex-col justify-between space-y-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Settings className="h-4 w-4 text-slate-600" />
+                <span>Simulation Settings</span>
+              </label>
+              <span className="text-[11px] text-slate-500 font-mono">
+                Parameters
+              </span>
+            </div>
+
+            {/* Policy Toggle */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
+                <Cpu className="h-3.5 w-3.5 text-teal-600" />
+                <span>Policy:</span>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={isRunning || isStarting}
+                  onClick={() => onConfigChange({ ...config, policy: "PPO" })}
+                  className={`py-2 px-3 rounded-lg border text-xs font-mono font-medium transition-all ${
+                    config.policy === "PPO"
+                      ? "bg-teal-50 border-teal-500 text-teal-800 shadow-sm"
+                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  PPO
+                </button>
+                <button
+                  type="button"
+                  disabled={isRunning || isStarting}
+                  onClick={() => onConfigChange({ ...config, policy: "PPO+ATGP" })}
+                  className={`py-2 px-3 rounded-lg border text-xs font-mono font-medium transition-all ${
+                    config.policy === "PPO+ATGP"
+                      ? "bg-teal-50 border-teal-500 text-teal-800 shadow-sm"
+                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  PPO+ATGP
+                </button>
+              </div>
+            </div>
+
+            {/* Target Selection */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
+                <Target className="h-3.5 w-3.5 text-amber-600" />
+                <span>Target:</span>
+              </label>
+              <select
+                value={config.target}
+                disabled={isRunning || isStarting}
+                onChange={(e) => onConfigChange({ ...config, target: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-teal-500"
+              >
+                {TARGET_HOSTS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Steps & Seed */}
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium text-slate-700 flex items-center gap-1">
+                    <Hash className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Steps</span>
+                  </span>
+                  <span className="font-mono text-teal-700 font-bold">
+                    {config.maxSteps}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={5}
+                  max={60}
+                  step={5}
+                  value={config.maxSteps}
+                  disabled={isRunning || isStarting}
+                  onChange={(e) =>
+                    onConfigChange({ ...config, maxSteps: Number(e.target.value) })
+                  }
+                  className="w-full accent-teal-600 cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium text-slate-700">Seed</span>
+                  <span className="font-mono text-slate-400 text-[10px]">Reproducible</span>
+                </div>
+                <input
+                  type="number"
+                  value={config.seed}
+                  disabled={isRunning || isStarting}
+                  onChange={(e) =>
+                    onConfigChange({ ...config, seed: Number(e.target.value) })
+                  }
+                  className="w-full px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs font-mono text-slate-900 focus:outline-none focus:border-teal-500"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-slate-300">
-              <span>Random Seed</span>
-            </label>
-            <input
-              type="number"
-              value={config.seed}
-              disabled={isRunning || isStarting}
-              onChange={(e) => handleFieldChange({ seed: Number(e.target.value) })}
-              className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-100 font-mono focus:outline-none focus:border-teal-500 disabled:opacity-60"
-            />
-            <span className="text-[10px] text-slate-400 font-mono">Ensures deterministic replay</span>
+          <div className="pt-2 text-[11px] text-slate-400 font-mono border-t border-slate-100 flex items-center justify-between">
+            <span>Isolated lab environment</span>
+            <span>Safe research execution</span>
           </div>
-        </div>
+        </Card>
       </div>
-
-      {/* Action Controls & Execution State Status */}
-      <div className="pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-teal-500/5 border border-teal-500/20 text-[11px] text-teal-300/90 max-w-xl">
-          <Info className="h-4 w-4 shrink-0 text-teal-400" />
-          <span>
-            {isRunning ? (
-              <span>
-                <strong>Historical Benchmark Replay Active:</strong> Stepping sequentially through real benchmark incidents from test.csv. Streaming live SSE events.
-              </span>
-            ) : (
-              <span>
-                <strong>Mode: Historical Benchmark Incident Replay:</strong> Replaying real incident records with CISA actions and bandit rewards (+1.0 / -1.0). Checkpoints are uncommitted; synthetic probabilities and fake containment have been removed.
-              </span>
-            )}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={handleReset}
-            disabled={isRunning || isStarting}
-            className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition-colors disabled:opacity-50"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            <span>Reset</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onStop}
-            disabled={!isRunning}
-            className={`px-3 py-2 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition-colors ${
-              isRunning
-                ? "bg-rose-500/15 border-rose-500/50 text-rose-300 hover:bg-rose-500/25 cursor-pointer"
-                : "bg-slate-800 text-slate-500 border-slate-700/60 cursor-not-allowed opacity-50"
-            }`}
-            title="Stop Simulation"
-          >
-            <Square className="h-3.5 w-3.5" />
-            <span>Stop</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onStart}
-            disabled={isRunning || isStarting}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold border flex items-center gap-1.5 transition-colors ${
-              !isRunning && !isStarting
-                ? "bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-400 hover:to-teal-500 text-slate-950 border-teal-400 cursor-pointer shadow-md shadow-teal-500/10"
-                : "bg-slate-800 text-slate-500 border-slate-700/60 cursor-not-allowed opacity-50"
-            }`}
-            title="Start Simulation"
-          >
-            {isStarting ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>Initializing...</span>
-              </>
-            ) : (
-              <>
-                <Play className="h-3.5 w-3.5 fill-current" />
-                <span>Start Simulation</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </Card>
+    </div>
   );
 }

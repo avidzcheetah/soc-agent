@@ -5,8 +5,8 @@
 @tailwind utilities;
 
 :root {
-  --background: #080d1a;
-  --foreground: #f1f5f9;
+  --background: #f8fafc;
+  --foreground: #0f172a;
 }
 
 body {
@@ -16,23 +16,23 @@ body {
   overflow-x: hidden;
 }
 
-/* Custom Scrollbar for security dashboards */
+/* Custom Scrollbar for dashboards */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #080d1a;
+  background: #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #cbd5e1;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #94a3b8;
 }
 
 /* Research table styling */
@@ -43,22 +43,23 @@ body {
 }
 
 .research-table th {
-  background-color: #0d1527;
-  color: #94a3b8;
+  background-color: #f8fafc;
+  color: #475569;
   font-weight: 600;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid #1e293b;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .research-table td {
   padding: 0.75rem 1rem;
   font-size: 0.875rem;
-  border-bottom: 1px solid #162033;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
 }
 
 .research-table tr:hover td {
-  background-color: rgba(19, 30, 54, 0.6);
+  background-color: #f1f5f9;
 }

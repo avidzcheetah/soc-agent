@@ -212,55 +212,55 @@ export function ResearchPipeline() {
               className={cn(
                 "relative flex flex-col items-start p-3 rounded-lg border text-left transition-all",
                 isSelected
-                  ? "bg-slate-800/90 border-teal-500 shadow-[0_0_12px_-2px_rgba(20,184,166,0.25)] ring-1 ring-teal-500/40"
-                  : "bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-850"
+                  ? "bg-teal-50 border-teal-500 ring-1 ring-teal-500/40 shadow-sm"
+                  : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50"
               )}
             >
               <div className="flex items-center justify-between w-full mb-2">
-                <span className="flex items-center justify-center h-5 w-5 rounded-full bg-slate-800 text-[10px] font-mono text-slate-300">
+                <span className="flex items-center justify-center h-5 w-5 rounded-full bg-slate-100 text-[10px] font-mono text-slate-700">
                   {step.number}
                 </span>
                 <span
                   className={cn("text-[9px] px-1.5 py-0.2 rounded font-medium border", {
-                    "bg-teal-500/10 text-teal-400 border-teal-500/30":
+                    "bg-teal-50 text-teal-800 border-teal-200":
                       step.status === "Implemented" || step.status === "Active",
-                    "bg-sky-500/10 text-sky-400 border-sky-500/30": step.status === "Frozen",
-                    "bg-slate-700/30 text-slate-400 border-slate-600/30":
+                    "bg-sky-50 text-sky-800 border-sky-200": step.status === "Frozen",
+                    "bg-slate-100 text-slate-600 border-slate-200":
                       step.status === "Phase 3 Planned",
                   })}
                 >
                   {step.status}
                 </span>
               </div>
-              <Icon className="h-4 w-4 text-teal-400 mb-1.5" />
-              <p className="text-xs font-semibold text-slate-100 line-clamp-1">{step.title}</p>
-              <p className="text-[10px] text-slate-400 line-clamp-1">{step.subtitle}</p>
+              <Icon className="h-4 w-4 text-teal-600 mb-1.5" />
+              <p className="text-xs font-semibold text-slate-900 line-clamp-1">{step.title}</p>
+              <p className="text-[10px] text-slate-500 line-clamp-1">{step.subtitle}</p>
             </button>
           );
         })}
       </div>
 
       {/* Selected Component Technical Detail Panel */}
-      <div className="rounded-xl border border-slate-800 bg-[#0d1527] p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4 mb-4">
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-4">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-teal-500/10 border border-teal-500/20 rounded-lg text-teal-400">
+            <div className="p-2.5 bg-teal-50 border border-teal-200 rounded-lg text-teal-700">
               {React.createElement(selectedStep.icon, { className: "h-5 w-5" })}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="text-sm font-bold text-slate-100">
+                <h4 className="text-sm font-bold text-slate-900">
                   Step {selectedStep.number}: {selectedStep.title}
                 </h4>
                 <StatusBadge status={selectedStep.status} />
               </div>
-              <p className="text-xs text-slate-400">{selectedStep.subtitle}</p>
+              <p className="text-xs text-slate-500">{selectedStep.subtitle}</p>
             </div>
           </div>
           {selectedStep.route && (
             <Link
               href={selectedStep.route}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 text-xs font-medium border border-teal-500/30 transition-colors self-start sm:self-auto"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-medium border border-teal-200 transition-colors self-start sm:self-auto"
             >
               <span>Explore Section</span>
               <ExternalLink className="h-3 w-3" />
@@ -268,19 +268,19 @@ export function ResearchPipeline() {
           )}
         </div>
 
-        <p className="text-xs text-slate-300 leading-relaxed mb-4">{selectedStep.description}</p>
+        <p className="text-xs text-slate-600 leading-relaxed mb-4">{selectedStep.description}</p>
 
         {/* Technical Specification Badges */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {selectedStep.technicalDetails.map((item, idx) => (
             <div
               key={idx}
-              className="p-3 rounded-lg bg-slate-900/80 border border-slate-800/80"
+              className="p-3 rounded-lg bg-slate-50 border border-slate-200"
             >
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono block">
+              <span className="text-[10px] uppercase tracking-wider text-slate-500 font-mono block">
                 {item.label}
               </span>
-              <span className="text-xs font-semibold text-slate-200 mt-0.5 block font-mono">
+              <span className="text-xs font-semibold text-slate-800 mt-0.5 block font-mono">
                 {item.value}
               </span>
             </div>

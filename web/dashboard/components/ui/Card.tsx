@@ -11,8 +11,8 @@ export function Card({ children, className, glow = false, ...props }: CardProps)
   return (
     <div
       className={cn(
-        "rounded-xl border border-slate-800/80 bg-[#0d1527] p-5 text-slate-100 shadow-sm",
-        glow && "border-teal-500/30 shadow-[0_0_15px_-3px_rgba(20,184,166,0.1)]",
+        "rounded-xl border border-slate-200 bg-white p-5 text-slate-800 shadow-sm",
+        glow && "border-teal-500/50 shadow-[0_0_15px_-3px_rgba(13,148,136,0.15)]",
         className
       )}
       {...props}
@@ -34,10 +34,10 @@ export function CardHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("mb-4 flex items-start justify-between gap-4 border-b border-slate-800/60 pb-3", className)}>
+    <div className={cn("mb-4 flex items-start justify-between gap-4 border-b border-slate-100 pb-3", className)}>
       <div>
-        <h3 className="text-base font-semibold text-slate-100 tracking-tight">{title}</h3>
-        {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+        <h3 className="text-base font-semibold text-slate-900 tracking-tight">{title}</h3>
+        {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
       </div>
       {action && <div>{action}</div>}
     </div>

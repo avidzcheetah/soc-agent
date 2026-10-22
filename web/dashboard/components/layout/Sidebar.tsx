@@ -53,25 +53,25 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 shrink-0 border-r border-slate-800 bg-[#060a14] flex flex-col justify-between min-h-screen">
+    <aside className="w-64 shrink-0 border-r border-slate-200 bg-white flex flex-col justify-between min-h-screen">
       {/* Brand Header */}
       <div>
-        <div className="p-5 border-b border-slate-800/80">
+        <div className="p-5 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-teal-500/10 border border-teal-500/20 rounded-lg text-teal-400">
+            <div className="p-2 bg-teal-50 border border-teal-200 rounded-lg text-teal-600">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-slate-100 tracking-tight leading-tight">
-                SOC Agent
+              <h1 className="text-base font-bold text-slate-900 tracking-tight leading-tight">
+                CORTEX-R
               </h1>
-              <p className="text-[10px] text-teal-400 font-medium tracking-wide">
-                Transformer-Based Incident Response
+              <p className="text-[10px] text-teal-700 font-medium tracking-wide">
+                Transformer-Guided Incident Response
               </p>
             </div>
           </div>
-          <div className="mt-3 inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-800/60 border border-slate-700/50 text-[11px] text-slate-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-teal-400" />
+          <div className="mt-3 inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] text-slate-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
             <span>Research Control Panel</span>
           </div>
         </div>
@@ -91,20 +91,20 @@ export function Sidebar() {
                 className={cn(
                   "flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors",
                   isActive
-                    ? "bg-teal-500/15 text-teal-300 border border-teal-500/30"
-                    : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+                    ? "bg-teal-50 text-teal-800 border border-teal-200 font-semibold"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 )}
               >
                 <div className="flex items-center gap-3">
-                  <Icon className={cn("h-4 w-4", isActive ? "text-teal-400" : "text-slate-400")} />
+                  <Icon className={cn("h-4 w-4", isActive ? "text-teal-600" : "text-slate-500")} />
                   <span>{item.name}</span>
                 </div>
                 {item.badge ? (
-                  <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 border border-slate-700 font-mono">
+                  <span className="px-1.5 py-0.5 rounded bg-slate-100 text-[10px] text-slate-600 border border-slate-200 font-mono">
                     {item.badge}
                   </span>
                 ) : isActive ? (
-                  <ChevronRight className="h-3 w-3 text-teal-400" />
+                  <ChevronRight className="h-3 w-3 text-teal-600" />
                 ) : null}
               </Link>
             );
@@ -113,16 +113,16 @@ export function Sidebar() {
       </div>
 
       {/* Footer Info */}
-      <div className="p-4 border-t border-slate-800/80 bg-slate-900/30 space-y-2 text-xs">
+      <div className="p-4 border-t border-slate-100 bg-slate-50 space-y-2 text-xs">
         <div>
-          <p className="text-[11px] font-semibold text-slate-300">Research Platform</p>
-          <p className="text-[10px] text-slate-400">
+          <p className="text-[11px] font-semibold text-slate-800">Research Platform</p>
+          <p className="text-[10px] text-slate-500">
             SecBERT (768d) + PPO / PPO+ATGP
           </p>
         </div>
-        <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+        <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500 font-mono">
           <span>Action Space: 20</span>
-          <span className="text-teal-400">Gymnasium</span>
+          <span className="text-teal-700 font-semibold">Gymnasium</span>
         </div>
       </div>
     </aside>

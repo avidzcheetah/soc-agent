@@ -1,38 +1,24 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import Link from "next/link";
-import {
-  ShieldCheck,
-  Award,
-  Layers,
-  ArrowRight,
-  ExternalLink,
-  Info,
-  Sliders,
-  Cpu,
-  BrainCircuit,
-  Activity,
-  AlertCircle,
-  Network,
-} from "lucide-react";
 import { SystemStatusCards } from "@/components/simulation/SystemStatusCards";
 import {
   SimulationConfigForm,
   SimulationConfig,
+  ATTACK_SCENARIOS,
 } from "@/components/simulation/SimulationConfigForm";
 import { ArchitectureFlow } from "@/components/simulation/ArchitectureFlow";
-import { EventTimeline } from "@/components/simulation/EventTimeline";
 import { CurrentDecisionPanel } from "@/components/simulation/CurrentDecisionPanel";
+import { EventTimeline } from "@/components/simulation/EventTimeline";
 import { ResultsSummaryCards } from "@/components/simulation/ResultsSummaryCards";
 import { api } from "@/lib/api";
 import { SimulationEvent, SimulationResults } from "@/types";
 
-export default function SimulationWorkspacePage() {
+export default function SOCSimulationPage() {
   const [config, setConfig] = useState<SimulationConfig>({
-    scenario: "scenario-ransomware",
+    scenario: ATTACK_SCENARIOS[0].id,
     policy: "PPO",
-    target: "Subnet 10.0.1.0/24 (Corporate Workstations)",
+    target: ATTACK_SCENARIOS[0].targetDefault,
     maxSteps: 20,
     seed: 42,
   });
@@ -45,23 +31,21 @@ export default function SimulationWorkspacePage() {
   const [currentDecision, setCurrentDecision] = useState<any | null>(null);
   const [currentStep, setCurrentStep] = useState<number | null>(null);
   const [activeStage, setActiveStage] = useState<number | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string>("4");
-  const [isStale, setIsStale] = useState<boolean>(false);
   const [results, setResults] = useState<SimulationResults | null>(null);
+  const [isStale, setIsStale] = useState<boolean>(false);
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
   const lastSeenSeqRef = useRef<number>(-1);
   const staleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Helper to restart the 5-second stale connection watchdog
   const resetStaleWatchdog = useCallback(() => {
     setIsStale(false);
     if (staleTimerRef.current) {
       clearTimeout(staleTimerRef.current);
     }
     staleTimerRef.current = setTimeout(() => {
-      // If 5 seconds elapse with no event while simulation is running, flag stale
+      // 5s elapsed without an SSE event during active run
       setIsStale(true);
     }, 5000);
   }, []);
@@ -74,7 +58,6 @@ export default function SimulationWorkspacePage() {
     setIsStale(false);
   }, []);
 
-  // Clean up SSE connection and timer on unmount
   useEffect(() => {
     return () => {
       if (eventSourceRef.current) {
@@ -91,7 +74,6 @@ export default function SimulationWorkspacePage() {
     setCurrentStep(null);
     setResults(null);
     setActiveStage(1);
-    setSelectedNodeId("1");
     lastSeenSeqRef.current = -1;
     clearStaleWatchdog();
 
@@ -124,20 +106,17 @@ export default function SimulationWorkspacePage() {
           const parsed = JSON.parse(e.data);
           const eventRunId = parsed.run_id || runId;
 
-          // Run ID Guard: Ignore events from previous or aborted runs
+          // Reject events from older runs
           if (activeRunIdRef.current && eventRunId !== activeRunIdRef.current) {
             return;
           }
 
           const seq = typeof parsed.seq === "number" ? parsed.seq : Date.now();
-
-          // Sequence monotonic guard: reject duplicate or out-of-order events
+          // Reject duplicates or out of order
           if (seq <= lastSeenSeqRef.current) {
             return;
           }
           lastSeenSeqRef.current = seq;
-
-          // Reset the stale connection watchdog since a genuine event was received
           resetStaleWatchdog();
 
           const simEvt: SimulationEvent = {
@@ -154,7 +133,7 @@ export default function SimulationWorkspacePage() {
           if (evtType === "simulation_started") {
             setActiveStage(1);
           } else if (evtType === "attack_stage_updated") {
-            setActiveStage(1);
+            setActiveStage(2);
             if (d.step !== undefined) setCurrentStep(d.step);
             setCurrentDecision((prev: any) => ({
               ...(prev || {}),
@@ -268,107 +247,92 @@ export default function SimulationWorkspacePage() {
     }
   };
 
-  return (
-    <div className="space-y-8 pb-16">
-      {/* Workspace Header */}
-      <div className="rounded-xl border border-slate-800 bg-gradient-to-r from-slate-900/90 via-[#0a1122]/80 to-slate-900/90 p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-teal-500/10 text-teal-400 border border-teal-500/20">
-                Department of Computer Engineering, University of Jaffna
-              </span>
-              <span className="px-2 py-0.5 rounded text-[11px] font-mono text-emerald-300 bg-emerald-500/10 border border-emerald-500/30">
-                Step 5: Live SOC Architecture Visualization Active
-              </span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-100 tracking-tight">
-              SOC Agent Simulation Control Panel
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-400 max-w-3xl leading-relaxed">
-              Research control workspace for{" "}
-              <strong className="text-slate-200">
-                Optimizing Cybersecurity Incident Response Actions Using a
-                Transformer-Based Agent
-              </strong>
-              . Demonstrates incident preprocessing, SecBERT 768-dim state
-              representations, and PPO / PPO+ATGP policy decision-making in an
-              authentic Gymnasium contextual bandit environment.
-            </p>
-          </div>
+  const handleReset = async () => {
+    if (isRunning && activeRunId) {
+      await handleStop();
+    }
+    try {
+      await api.resetSimulations();
+    } catch {
+      // Ignore reset endpoint error if offline
+    }
+    setEvents([]);
+    setCurrentDecision(null);
+    setCurrentStep(null);
+    setActiveStage(null);
+    setResults(null);
+    setActiveRunId(null);
+    setIsRunning(false);
+    clearStaleWatchdog();
+  };
 
-          <div className="flex sm:flex-col items-end gap-2 shrink-0">
-            <Link
-              href="/architecture"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
-            >
-              <Layers className="h-3.5 w-3.5 text-teal-400" />
-              <span>Full Architecture</span>
-            </Link>
-            <Link
-              href="/results"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
-            >
-              <Award className="h-3.5 w-3.5 text-amber-400" />
-              <span>Research Results</span>
-            </Link>
-          </div>
+  const currentScenarioName =
+    ATTACK_SCENARIOS.find((s) => s.id === config.scenario)?.name || config.scenario;
+
+  const currentStatusString = isRunning ? "Running" : results ? "Completed" : "Ready";
+
+  return (
+    <div className="space-y-6 pb-12">
+      {/* 1. Research Title Box */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-6">
+        <div className="space-y-1.5">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+            Optimizing Cybersecurity Incident Response Actions Using a Transformer-Based Agent
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-600 font-medium">
+            Witharana A.D.S. &amp; Perera W.P.C.K.
+          </p>
         </div>
       </div>
 
-      {/* A. System Status Cards */}
+      {/* 2. System Component Status */}
       <section>
         <SystemStatusCards />
       </section>
 
-      {/* B. Simulation Configuration & Start/Stop Controls */}
+      {/* 3. SOC Environment & Simulation Controls (Clean 2-Box Layout) */}
       <section>
         <SimulationConfigForm
           config={config}
           onConfigChange={setConfig}
           onStart={handleStart}
           onStop={handleStop}
+          onReset={handleReset}
           isStarting={isStarting}
           isRunning={isRunning}
           activeRunId={activeRunId}
         />
       </section>
 
-      {/* C. System Architecture Visualization (React Flow with 8 Stages and Edge Transitions) */}
+      {/* 4. Live System Architecture (React Flow Implementation) */}
       <section>
         <ArchitectureFlow
-          activeStage={activeStage}
-          activeRunId={activeRunId}
+          scenario={currentScenarioName}
+          simulationStatus={currentStatusString as any}
           currentStep={currentStep}
           maxSteps={config.maxSteps}
-          selectedScenario={config.scenario}
+          activeStage={activeStage}
           selectedPolicy={config.policy}
-          simulationMode="Historical Replay"
           isStale={isStale}
-          selectedNodeId={selectedNodeId}
-          onSelectNode={setSelectedNodeId}
-          liveStepData={currentDecision}
         />
       </section>
 
-      {/* D & E. Event Timeline and Current Decision Panel */}
+      {/* 5. Live Decisions & Simulation Event Log (Side by Side) */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <EventTimeline
-          events={events}
-          isRunning={isRunning}
-          activeRunId={activeRunId}
-          selectedNodeId={selectedNodeId}
-          onSelectNode={setSelectedNodeId}
-        />
         <CurrentDecisionPanel
           selectedPolicy={config.policy}
           currentDecision={currentDecision}
           currentStep={currentStep}
           isRunning={isRunning}
         />
+        <EventTimeline
+          events={events}
+          isRunning={isRunning}
+          activeRunId={activeRunId}
+        />
       </section>
 
-      {/* F. Results Summary */}
+      {/* 6. Current Simulation Results */}
       <section>
         <ResultsSummaryCards results={results} isRunning={isRunning} />
       </section>

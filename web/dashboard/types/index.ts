@@ -379,6 +379,11 @@ export interface HealthResponse {
   datasets_ready: boolean;
   action_space_size: number;
   total_benchmark_records: number;
+  checkpoint_audit?: {
+    secbert?: { exists_on_disk?: boolean; status?: string; path?: string };
+    ppo?: { exists_on_disk?: boolean; status?: string; path?: string };
+    ppo_atgp?: { exists_on_disk?: boolean; status?: string; path?: string };
+  };
 }
 
 export interface ScenarioStage {
