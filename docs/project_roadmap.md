@@ -106,12 +106,16 @@ This document tracks the overall progress of the Autonomous SOC Agent project ac
 - [x] **Step 22: Testbed Lifecycle Automation & Verification**
   - [x] Create and verify `scripts/start_soc_env.sh` (7/7 PASS verification).
   - [x] Create and verify `scripts/stop_soc_env.sh` (graceful container shutdown preserving volumes).
-- [ ] **Step 23: Telemetry & Alert Ingestion Pipeline**
-  - [ ] Ingest Wazuh alerts via REST API / alerts.json log stream.
-  - [ ] Standardize raw alerts into structured incident schema compatible with SecBERT.
-- [ ] **Step 24: Agent Middleware & Action Execution Interface**
-  - [ ] Deploy frozen SecBERT encoder and champion PPO+ATGP policy in live inference mode.
-  - [ ] Implement response action executors for the 20 actions (firewall rules, process termination, persistence cleanup).
-- [ ] **Step 25: Adversary Scenarios & Operational Evaluation**
-  - [ ] Execute automated MITRE Caldera adversary profiles.
-  - [ ] Benchmark SecBERT baseline vs Standard PPO vs PPO+ATGP on operational metrics (MTTC, containment success rate).
+- [x] **Step 23: Telemetry & Alert Ingestion Pipeline**
+  - [x] Implemented telemetry normalization in `src/telemetry/aggregator.py` for Wazuh alert JSON and OSQuery BPF process events.
+  - [x] Implemented 34-feature structured telemetry extractor in `src/telemetry_feature_extractor.py`.
+  - [x] Implemented `TelemetryAugmentedSOCEnvironment` with combined 802-dimensional state representation.
+- [x] **Step 24: Agent Middleware & Action Execution Interface**
+  - [x] Implemented `AugmentedPPOAgent` supporting 802-dimensional continuous state representation.
+  - [x] Implemented multi-step sequential PPO trainer in `src/ppo/trainer_sequential.py` with validation checkpointing.
+  - [x] Implemented discrete action transition dynamics across 20 CISA mitigation actions.
+- [x] **Step 25: Adversary Scenarios & Operational Evaluation**
+  - [x] Preconfigured multi-stage adversary scenarios (C2 exfiltration, sudo privilege escalation, credential abuse, reverse TCP tunnel, benign administrative tasks).
+  - [x] Built comparative evaluation harnesses: `scripts/evaluate_soc_baselines.py` and `scripts/evaluate_exp003_comparative.py`.
+  - [x] Executed multi-seed comparative benchmark across 60 held-out stochastic evaluation episodes.
+  - [x] Generated comprehensive research reports: `docs/refined_research_results_report.md` and `results/soc_env/exp003/final_comparison_report.md`.

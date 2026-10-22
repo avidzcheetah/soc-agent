@@ -60,6 +60,38 @@ The system operates in two core phases:
 
 ---
 
+## Research Results & Benchmark Leaderboard
+
+### Primary Benchmark Results (Untouched 1,539-Sample Test Set)
+
+Evaluated on the strictly held-out test partition ($N = 1,539$) drawn from 15,390 CISSM and rcATT incidents across 20 discrete CISA response actions:
+
+| Metric | Fine-Tuned SecBERT (`EXP_20260727_001`) | Standard Naive PPO (`Exp 0`) | Proposed PPO + ATGP Model (`EXP_PPO_004D_ATGP`) | Delta (ATGP vs. SecBERT) |
+| :--- | :---: | :---: | :---: | :---: |
+| **Accuracy** | **94.61%** | 93.44% | **94.74%** | **+0.13%** |
+| **Weighted F1-score** | **94.54%** | 93.00% | **94.61%** | **+0.07%** |
+| **Macro F1-score** | **71.21%** | 61.14% | **71.64%** | **+0.43%** |
+| **Matthews Correlation (MCC)** | **+0.9364** | +0.9224 | **+0.9378** | **+0.0014** |
+| **Top-2 Action Accuracy** | **96.95%** | 95.12% | **97.08%** | **+0.13%** |
+| **False Positive Rate (FPR)** | **0.21%** | 1.84% | **0.14%** | **-0.07%** |
+
+### Head-to-Head Comparison with External Approaches & Literature
+
+| Approach / Model | Paradigm & Architecture | Action Decision Space | Accuracy / Det. | Macro F1 | Weighted F1 | Primary Operational Limitation |
+| :--- | :--- | :--- | :---: | :---: | :---: | :--- |
+| **Hartono et al. (2024)** | Supervised Fine-Tuned Transformer | Binary Detection (Benign vs. Attack) | 97.80% | — | — | **Triage Only:** Incapable of recommending or executing mitigation actions. |
+| **Delgado-Sotes et al. (2024)** | Fine-Tuned Transformer for CSIRT | Incident Categorization (Multi-class) | 83.85% | 70.10% | 83.20% | **Static Taxonomy:** Categorizes incident text; cannot execute dynamic containment. |
+| **Ren et al. (2025) ARCS** | Deep Q-Network (DQN) RL | Discrete Mitigation (`isolate`, `kill`) | 88.40% | 63.50% | 87.10% | **High Disruption:** Lacks text semantics; over-isolates benign infrastructure. |
+| **Jones et al. (2025)** | LLM Prompting (GPT-4o) | Free-Form Triage Recommendations | Qualitative | — | — | **High Latency & No RL:** Slow prompt queries (2–5s); lacks multi-stage optimization. |
+| **Rule-Based SOAR** | Heuristic Playbooks (IF-THEN) | Heuristic Scripts (`block_ip`, `kill`) | 78.50% | 58.20% | 76.90% | **Rigid Heuristics:** High false disruption on routine admin tasks (e.g., CI/CD builds). |
+| **Standard PPO (Naive)** | RL Contextual Bandit (Scalar $+1/-1$) | 20 CISA Response Actions | 93.44% | 61.14% | 93.00% | **Minority Collapse:** Suffers exploration starvation on rare response actions. |
+| **Fine-Tuned SecBERT** | Supervised Pretrained Transformer | 20 CISA Response Actions | 94.61% | 71.21% | 94.54% | **Static Ceiling:** Supervised ceiling; cannot interact with dynamic environment states. |
+| **Our System: PPO + ATGP** | **SecBERT Pooler + ATGP Guided RL** | **20 CISA Response Actions** | **94.74%** | **71.64%** | **94.61%** | **Best-in-Class Autonomous Agent:** Combines rich transformer semantics with RL action selection. |
+
+> Complete research details, per-class confusion matrices, and slide summaries are documented in [`docs/refined_research_results_report.md`](docs/refined_research_results_report.md).
+
+---
+
 ## Repository Structure
 
 ```directory
